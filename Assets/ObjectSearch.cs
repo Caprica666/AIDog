@@ -38,12 +38,16 @@ public class ObjectSearch : MonoBehaviour
 
     private IEnumerator SendImagesToAgent()
     {
+        RenderTexture renderTexture = captureCamera.targetTexture;
+        if (renderTexture == null)
+        {
+            renderTexture = new RenderTexture(Screen.width, Screen.height, 24);
+            captureCamera.targetTexture = renderTexture;
+        }
+
         while (isSearching)
         {
             // Capture the image
-            RenderTexture renderTexture = new RenderTexture(Screen.width, Screen.height, 24);
-            captureCamera.targetTexture = renderTexture;
-
             Texture2D screenShot = new Texture2D(Screen.width, Screen.height, TextureFormat.RGB24, false);
             captureCamera.Render();
 
@@ -51,9 +55,7 @@ public class ObjectSearch : MonoBehaviour
             screenShot.ReadPixels(new Rect(0, 0, Screen.width, Screen.height), 0, 0);
             screenShot.Apply();
 
-            captureCamera.targetTexture = null;
             RenderTexture.active = null;
-            Destroy(renderTexture);
 
             // Get raw pixel data
             byte[] rawImageData = screenShot.GetRawTextureData();
@@ -91,6 +93,12 @@ public class ObjectSearch : MonoBehaviour
 
             // Wait for a short interval before sending the next image
             yield return new WaitForSeconds(0.5f);
+        }
+
+        // Cleanup if a new RenderTexture was created
+        if (captureCamera.targetTexture != renderTexture)
+        {
+            Destroy(renderTexture);
         }
     }
 

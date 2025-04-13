@@ -4,17 +4,21 @@ using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
 using System.Diagnostics;
+using TMPro; // Add this at the top of the file
 
 public class MCPAgentUI : MonoBehaviour
 {
     public Button startButton;
     public Button stopButton;
-    public InputField instructionInput;
-    public Button sendInstructionButton;
-    public Text responseText;
+    public TMP_InputField instructionInput; // Replace InputField with TMP_InputField
+    public Button askAgent;
+    public TMP_Text responseText;
 
     private HttpClient httpClient;
     private Process mcpAgentProcess;
+
+    private Process mcpServerProcess;
+
 
     void Start()
     {
@@ -22,11 +26,70 @@ public class MCPAgentUI : MonoBehaviour
 
         startButton.onClick.AddListener(StartAgent);
         stopButton.onClick.AddListener(StopAgent);
-        sendInstructionButton.onClick.AddListener(SendInstruction);
+        askAgent.onClick.AddListener(SendInstruction);
+    }
+
+    private async Task<bool> IsServerRunning()
+    {
+        string url = "http://localhost:8000"; // Replace with the server's health check or root endpoint
+
+        try
+        {
+            HttpResponseMessage response = await httpClient.GetAsync(url);
+            return response.IsSuccessStatusCode;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private void StartMCPServer()
+    {
+        string pythonPath = @"C:\Users\nolad\miniconda3\python.exe"; // Path to Python executable
+        string scriptPath = @"c:\projects\Unity\AIDog\UnityMCPAgent\agent.py"; // Path to the MCP server script
+
+
+        ProcessStartInfo startInfo = new ProcessStartInfo
+        {
+            FileName = pythonPath,
+            Arguments = scriptPath,
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true
+        };
+
+        mcpServerProcess = new Process
+        {
+            StartInfo = startInfo
+        };
+
+        mcpServerProcess.OutputDataReceived += (sender, args) => UnityEngine.Debug.Log(args.Data);
+        mcpServerProcess.ErrorDataReceived += (sender, args) => UnityEngine.Debug.LogError(args.Data);
+
+        mcpServerProcess.Start();
+        mcpServerProcess.BeginOutputReadLine();
+        mcpServerProcess.BeginErrorReadLine();
+
+        responseText.text = "MCP server started.";
+    }
+
+    private void OnApplicationQuit()
+    {
+        if (mcpServerProcess != null && !mcpServerProcess.HasExited)
+        {
+            mcpServerProcess.Kill();
+            responseText.text = "MCP server stopped.";
+        }
     }
 
     async void StartAgent()
     {
+        if (!await IsServerRunning())
+        {
+            StartMCPServer();
+        }
         if (mcpAgentProcess == null || mcpAgentProcess.HasExited)
         {
             await Task.Run(() =>
@@ -52,7 +115,7 @@ public class MCPAgentUI : MonoBehaviour
         }
     }
 
-    void StopAgent()
+    async void StopAgent()
     {
         if (mcpAgentProcess != null && !mcpAgentProcess.HasExited)
         {
@@ -63,6 +126,10 @@ public class MCPAgentUI : MonoBehaviour
         else
         {
             responseText.text = "Agent is not running.";
+        }
+        if (!await IsServerRunning())
+        {
+            OnApplicationQuit();
         }
     }
 
