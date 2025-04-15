@@ -1,0 +1,15 @@
+{
+    "inputs": [
+    {
+      "type": "promptString",
+    }
+  ],
+  "servers": {
+    // https://github.com/ppl-ai/modelcontextprotocol/
+    "AIDog": {
+      "type": "stdio",
+      "command": "python",
+      "args": ["aidog_agent.py"],
+    }
+  }
+}

@@ -3,3 +3,6 @@ Logs/
 Temp/
 __pycache__/
 Assets/Plugins/
+.fake
+/mcpenv/Lib
+

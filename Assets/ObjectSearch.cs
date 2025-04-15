@@ -1,42 +1,140 @@
 using UnityEngine;
-using System.Collections;
-using System.Net.Http;
 using System.Text;
-using System.Threading.Tasks;
 using Newtonsoft.Json;
+using System.Threading;
+using System.Net;
+using System.IO;
+using System;
 
 public class ObjectSearch : MonoBehaviour
 {
     public Camera captureCamera; // Reference to the camera to capture from
-    public string agentServerUrl = "http://localhost:8000"; // URL of the agent server
+    public string unityServerUrl = "http://localhost:5000"; // URL of the agent server
 
     private string objectName;
-    private bool isSearching = false;
+    private HttpListener httpListener;
+    private Thread listenerThread;
 
-    public async void StartObjectSearch(string objectName)
+    void Start()
     {
-        this.objectName = objectName;
-        isSearching = true;
+        StartHttpListener();
+    }
 
-        // Notify the agent server to start the object request
-        using (HttpClient client = new HttpClient())
+    void OnDestroy()
+    {
+        StopHttpListener();
+    }
+
+    public void OnObjectFound(string objectName, float[] boundingBox)
+    {
+        // Handle the object found event here
+        Debug.Log($"Object '{objectName}' found with bounding box: {boundingBox[0]}, {boundingBox[1]}, {boundingBox[2]}, {boundingBox[3]}");
+    }
+
+    private void StartHttpListener()
+    {
+        httpListener = new HttpListener();
+        httpListener.Prefixes.Add(unityServerUrl); // Change port if needed
+        httpListener.Start();
+
+        listenerThread = new Thread(() =>
         {
-            var content = new StringContent(JsonConvert.SerializeObject(new { object_name = objectName }), Encoding.UTF8, "application/json");
-            var response = await client.PostAsync(agentServerUrl + "/start_object_request", content);
+            while (httpListener.IsListening)
+            {
+                try
+                {
+                    var context = httpListener.GetContext();
+                    HandleRequest(context);
+                }
+                catch (HttpListenerException) { break; } // Listener stopped
+                catch (Exception ex) { Debug.LogError(ex); }
+            }
+        });
 
-            if (response.IsSuccessStatusCode)
-            {
-                Debug.Log("Object search started for: " + objectName);
-                StartCoroutine(SendImagesToAgent());
-            }
-            else
-            {
-                Debug.LogError("Failed to start object search: " + response.ReasonPhrase);
-            }
+        listenerThread.IsBackground = true;
+        listenerThread.Start();
+
+        Debug.Log("HTTP Listener started on ");
+    }
+
+    private void StopHttpListener()
+    {
+        if (httpListener != null && httpListener.IsListening)
+        {
+            httpListener.Stop();
+            httpListener.Close();
+        }
+
+        if (listenerThread != null && listenerThread.IsAlive)
+        {
+            listenerThread.Abort();
         }
     }
 
-    private IEnumerator SendImagesToAgent()
+    private void HandleRequest(HttpListenerContext context)
+    {
+        var request = context.Request;
+        var response = context.Response;
+
+        // Handle image_from_unity/object_name=XXX
+        // Return raw images pixels from the current head camera
+        if (request.HttpMethod == "GET" && request.Url.AbsolutePath == "/image_from_unity" && request.QueryString["object_name"] != null)
+        {
+            string objectName = request.QueryString["object_name"];
+
+            // Capture the image and return raw pixels
+            byte[] rawImagePixels = CaptureImage();
+
+            if (rawImagePixels != null)
+            {
+                response.ContentType = "application/octet-stream";
+                response.ContentLength64 = rawImagePixels.Length;
+                response.OutputStream.Write(rawImagePixels, 0, rawImagePixels.Length);
+            }
+            else
+            {
+                response.StatusCode = (int)HttpStatusCode.InternalServerError;
+                byte[] buffer = Encoding.UTF8.GetBytes("Failed to capture image");
+                response.ContentLength64 = buffer.Length;
+                response.OutputStream.Write(buffer, 0, buffer.Length);
+            }
+        }
+        // Handle bounds_to_unity POST request with object_name and bounding_box payload
+        else if (request.HttpMethod == "POST" && request.Url.AbsolutePath == "/bounds_to_unity")
+        {
+            using (var reader = new StreamReader(request.InputStream, request.ContentEncoding))
+            {
+                string payload = reader.ReadToEnd();
+                var data = JsonConvert.DeserializeObject<BoundsPayload>(payload);
+
+                if (data != null && !string.IsNullOrEmpty(data.object_name) && data.bounding_box != null)
+                {
+                    Debug.Log($"Received bounding box for object '{data.object_name}': [{string.Join(", ", data.bounding_box)}]");
+
+                    response.StatusCode = (int)HttpStatusCode.OK;
+                    OnObjectFound(data.object_name, data.bounding_box)
+                }
+                else
+                {
+                    response.StatusCode = (int)HttpStatusCode.BadRequest;
+                    byte[] buffer = Encoding.UTF8.GetBytes("Invalid payload");
+                    response.ContentLength64 = buffer.Length;
+                    response.OutputStream.Write(buffer, 0, buffer.Length);
+                }
+            }
+        }
+        else
+        {
+            response.StatusCode = (int)HttpStatusCode.BadRequest;
+            byte[] buffer = Encoding.UTF8.GetBytes("Invalid request");
+            response.ContentLength64 = buffer.Length;
+            response.OutputStream.Write(buffer, 0, buffer.Length);
+        }
+
+        response.OutputStream.Close();
+    }
+
+    private byte[] CaptureImage()
     {
         RenderTexture renderTexture = captureCamera.targetTexture;
         if (renderTexture == null)
@@ -45,73 +143,23 @@ public class ObjectSearch : MonoBehaviour
             captureCamera.targetTexture = renderTexture;
         }
 
-        while (isSearching)
-        {
-            // Capture the image
-            Texture2D screenShot = new Texture2D(Screen.width, Screen.height, TextureFormat.RGB24, false);
-            captureCamera.Render();
+        // Capture the image
+        Texture2D screenShot = new Texture2D(Screen.width, Screen.height, TextureFormat.RGB24, false);
+        captureCamera.Render();
 
-            RenderTexture.active = renderTexture;
-            screenShot.ReadPixels(new Rect(0, 0, Screen.width, Screen.height), 0, 0);
-            screenShot.Apply();
+        RenderTexture.active = renderTexture;
+        screenShot.ReadPixels(new Rect(0, 0, Screen.width, Screen.height), 0, 0);
+        screenShot.Apply();
 
-            RenderTexture.active = null;
+        RenderTexture.active = null;
 
-            // Get raw pixel data
-            byte[] rawImageData = screenShot.GetRawTextureData();
-
-            // Send the image to the agent server
-            using (HttpClient client = new HttpClient())
-            {
-                var content = new StringContent(JsonConvert.SerializeObject(new { object_name = objectName, raw_image = rawImageData }), Encoding.UTF8, "application/json");
-                var task = client.PostAsync(agentServerUrl + "/send_image", content);
-
-                yield return new WaitUntil(() => task.IsCompleted);
-
-                if (task.Result.IsSuccessStatusCode)
-                {
-                    Debug.Log("Image sent successfully.");
-
-                    // Process the response
-                    var responseContent = task.Result.Content.ReadAsStringAsync().Result;
-                    var boundingBox = JsonConvert.DeserializeObject<BoundingBoxResponse>(responseContent);
-
-                    if (boundingBox != null && boundingBox.success)
-                    {
-                        Debug.Log($"Bounding Box: X={boundingBox.bounding_box[0]}, Y={boundingBox.bounding_box[1]}, Width={boundingBox.bounding_box[2] - boundingBox.bounding_box[0]}, Height={boundingBox.bounding_box[3] - boundingBox.bounding_box[1]}");
-                    }
-                    else
-                    {
-                        Debug.LogError("Object not found in the image.");
-                    }
-                }
-                else
-                {
-                    Debug.LogError("Failed to send image: " + task.Result.ReasonPhrase);
-                }
-            }
-
-            // Wait for a short interval before sending the next image
-            yield return new WaitForSeconds(0.5f);
-        }
-
-        // Cleanup if a new RenderTexture was created
-        if (captureCamera.targetTexture != renderTexture)
-        {
-            Destroy(renderTexture);
-        }
+        // Get raw pixel data
+        return screenShot.GetRawTextureData();
     }
 
-    public void StopObjectSearch()
+    private class BoundsPayload
     {
-        isSearching = false;
-        Debug.Log("Object search stopped.");
-    }
-
-    private class BoundingBoxResponse
-    {
-        public bool success { get; set; }
-        public string object_name { get; set; } // Name of the object
-        public float[] bounding_box { get; set; } // [x_min, y_min, x_max, y_max]
+        public string object_name { get; set; }
+        public float[] bounding_box { get; set; }
     }
 }
