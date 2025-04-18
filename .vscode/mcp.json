@@ -6,10 +6,10 @@
   ],
   "servers": {
     // https://github.com/ppl-ai/modelcontextprotocol/
-    "AIDog": {
-      "type": "stdio",
-      "command": "python",
-      "args": ["aidog_agent.py"],
-    }
+    //"AIDog_Stdio": {
+    //  "type": "stdio",
+    //  "command": "c:\\projects\\Unity\\AIDog\\mcpenv\\Scripts\\python.exe",
+    //  "args": ["C:\\projects\\Unity\\AIDog\\UnityMCPAgent\\aidog_agent.py"]
+    //}
   }
 }

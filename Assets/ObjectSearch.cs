@@ -9,14 +9,18 @@ using System;
 public class ObjectSearch : MonoBehaviour
 {
     public Camera captureCamera; // Reference to the camera to capture from
-    public string unityServerUrl = "http://localhost:5000"; // URL of the agent server
+    public string unityListenerUrl = "http://localhost:5000/"; // URL of the agent server
+    public int TextureSize = 512;
+
 
     private string objectName;
     private HttpListener httpListener;
     private Thread listenerThread;
+    private UnityMainThreadDispatcher mainThreadDispatcher;
 
     void Start()
     {
+        mainThreadDispatcher = UnityMainThreadDispatcher.Instance();
         StartHttpListener();
     }
 
@@ -34,7 +38,7 @@ public class ObjectSearch : MonoBehaviour
     private void StartHttpListener()
     {
         httpListener = new HttpListener();
-        httpListener.Prefixes.Add(unityServerUrl); // Change port if needed
+        httpListener.Prefixes.Add(unityListenerUrl); // Change port if needed
         httpListener.Start();
 
         listenerThread = new Thread(() =>
@@ -53,8 +57,7 @@ public class ObjectSearch : MonoBehaviour
 
         listenerThread.IsBackground = true;
         listenerThread.Start();
-
-        Debug.Log("HTTP Listener started on ");
+        Debug.Log("HTTP Listener started on " + unityListenerUrl);
     }
 
     private void StopHttpListener()
@@ -69,6 +72,7 @@ public class ObjectSearch : MonoBehaviour
         {
             listenerThread.Abort();
         }
+        Debug.Log("HTTP Listener stopped ");
     }
 
     private void HandleRequest(HttpListenerContext context)
@@ -76,14 +80,22 @@ public class ObjectSearch : MonoBehaviour
         var request = context.Request;
         var response = context.Response;
 
-        // Handle image_from_unity/object_name=XXX
-        // Return raw images pixels from the current head camera
         if (request.HttpMethod == "GET" && request.Url.AbsolutePath == "/image_from_unity" && request.QueryString["object_name"] != null)
         {
             string objectName = request.QueryString["object_name"];
 
-            // Capture the image and return raw pixels
-            byte[] rawImagePixels = CaptureImage();
+            // Schedule the CaptureImage call on the main thread
+            byte[] rawImagePixels = null;
+            mainThreadDispatcher.Enqueue(() =>
+            {
+                rawImagePixels = CaptureImage();
+            });
+
+            // Wait for the image capture to complete
+            while (rawImagePixels == null)
+            {
+                Thread.Sleep(10);
+            }
 
             if (rawImagePixels != null)
             {
@@ -112,7 +124,7 @@ public class ObjectSearch : MonoBehaviour
                     Debug.Log($"Received bounding box for object '{data.object_name}': [{string.Join(", ", data.bounding_box)}]");
 
                     response.StatusCode = (int)HttpStatusCode.OK;
-                    OnObjectFound(data.object_name, data.bounding_box)
+                    OnObjectFound(data.object_name, data.bounding_box);
                 }
                 else
                 {
@@ -139,16 +151,16 @@ public class ObjectSearch : MonoBehaviour
         RenderTexture renderTexture = captureCamera.targetTexture;
         if (renderTexture == null)
         {
-            renderTexture = new RenderTexture(Screen.width, Screen.height, 24);
+            renderTexture = new RenderTexture(TextureSize, TextureSize, 24);
             captureCamera.targetTexture = renderTexture;
         }
 
         // Capture the image
-        Texture2D screenShot = new Texture2D(Screen.width, Screen.height, TextureFormat.RGB24, false);
+        Texture2D screenShot = new Texture2D(TextureSize, TextureSize, TextureFormat.RGB24, false);
         captureCamera.Render();
 
         RenderTexture.active = renderTexture;
-        screenShot.ReadPixels(new Rect(0, 0, Screen.width, Screen.height), 0, 0);
+        screenShot.ReadPixels(new Rect(0, 0, TextureSize, TextureSize), 0, 0);
         screenShot.Apply();
 
         RenderTexture.active = null;
