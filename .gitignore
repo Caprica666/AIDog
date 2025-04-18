@@ -4,5 +4,6 @@ Temp/
 __pycache__/
 Assets/Plugins/
 .fake
-/mcpenv/Lib
+.vs/
+mcpenv/Lib/
 
