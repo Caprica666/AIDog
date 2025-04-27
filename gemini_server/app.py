@@ -103,7 +103,11 @@ def draw_image_and_box(image_png_data, bbox):
     image_memory_file = io.BytesIO(image_png_data)
     image_data = image_memory_file.getvalue()
     imageb64 = base64.b64encode(image_data).decode('utf-8')
-    return render_template("index.html", bounding_boxes=bbox, image_data=imageb64)
+   
+    bbox[2] = bbox[2] - bbox[0]
+    bbox[3] = bbox[3] - bbox[1]
+    return render_template("index.html", bbox_x=bbox[0], bbox_y = bbox[1],
+                           bbox_width = bbox[2], bbox_height = bbox[3], image_data = imageb64)
 
 def main():
     logger.debug("running web server")
