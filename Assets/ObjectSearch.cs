@@ -93,7 +93,7 @@ public class ObjectSearch : MonoBehaviour
 
             while (imageBytes == null)
             {
-                Thread.Sleep(10); // Wait for the capture to complete
+                Thread.Sleep(2); // Wait for the capture to complete
             }
 
             if (imageBytes != null)
@@ -136,9 +136,16 @@ public class ObjectSearch : MonoBehaviour
                 }
             }
         }
+        if (request.HttpMethod == "GET" && request.Url.AbsolutePath == "/ping")
+        {
+            response.StatusCode = (int) HttpStatusCode.OK;
+            byte[] buffer = Encoding.UTF8.GetBytes("{ \"message\": \"pong\" }");
+            response.ContentLength64 = buffer.Length;
+            response.OutputStream.Write(buffer, 0, buffer.Length);
+        }
         else
         {
-            response.StatusCode = (int)HttpStatusCode.BadRequest;
+            response.StatusCode = (int) HttpStatusCode.BadRequest;
             byte[] buffer = Encoding.UTF8.GetBytes("Invalid request");
             response.ContentLength64 = buffer.Length;
             response.OutputStream.Write(buffer, 0, buffer.Length);

@@ -1078,7 +1078,7 @@ GameObject:
   - component: {fileID: 871335402}
   - component: {fileID: 871335403}
   m_Layer: 0
-  m_Name: MCPAgentController
+  m_Name: AgentController
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -1827,7 +1827,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   captureCamera: {fileID: 2114605539}
-  unityServerUrl: http://localhost:5000/
+  unityListenerUrl: http://localhost:5000/
+  TextureSize: 512
 --- !u!114 &2114605537
 MonoBehaviour:
   m_ObjectHideFlags: 0

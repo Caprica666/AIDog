@@ -35,14 +35,16 @@ import logging
 
 UNITY_APP_URL = "http://localhost:5000"
 UNITY_CONNECT_PORT = 5001
+USE_GEMINI = False  # Set to False to disable Gemini usage
 
-app = Flask(__name__)
-gemini = GeminiClient()
-unity = UnityConnection(app, UNITY_APP_URL)
 
+if USE_GEMINI:
+    gemini = GeminiClient()
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger("UserInterface")
 logger.setLevel(logging.DEBUG)
+app = Flask(__name__)
+unity = UnityConnection(app, UNITY_APP_URL)
 
 @app.route("/", methods=["GET", "POST"])
 def show_startup_page():
@@ -72,9 +74,11 @@ def on_command_received(command):
         status_line = "Failed to get image from Unity."
         return status_line
     # Use Gemini to find the object in the image
-    response = gemini.find_object(command, image)
+    if not USE_GEMINI:
+        bbox = [128, 128, 300, 300]
+        return draw_image_and_box(image, bbox)
     
-
+    response = gemini.find_object(command, image)    
     # Parse the response from Gemini and convert it to a dictionary
     try:
         response_dict = json.loads(response)
@@ -106,8 +110,8 @@ def draw_image_and_box(image_png_data, bbox):
    
     bbox[2] = bbox[2] - bbox[0]
     bbox[3] = bbox[3] - bbox[1]
-    return render_template("index.html", bbox_x=bbox[0], bbox_y = bbox[1],
-                           bbox_width = bbox[2], bbox_height = bbox[3], image_data = imageb64)
+    return render_template("index.html", bbox_x=bbox[0], bbox_y=bbox[1],
+                           bbox_width=bbox[2], bbox_height=bbox[3], image_data=imageb64)
 
 def main():
     logger.debug("running web server")

@@ -15,15 +15,19 @@
 
     <h2>Status</h2>
     <p>{{ status_line }}</p>
+    <br>
 
     {% if image_data %}
-
     <canvas id="image-canvas" style="border:1px solid #000000;">
     </canvas>
     <script>
         const canvas = document.getElementById('image-canvas');
         const ctx = canvas.getContext('2d');
         const image = new Image();
+        bx = "{{ bbox_x }}";
+        by = "{{ bbox_y }}";  
+        bw = "{{ bbox_width }}";
+        bh = "{{ bbox_height }}";
 
         // Set up the image source
         image.onload = function () {
@@ -35,23 +39,19 @@
             ctx.drawImage(image, 0, 0);
 
             // Draw the bounding box
-            if (bounding_box) {
-                ctx.strokeStyle = 'red';
-                ctx.lineWidth = 2;
-                ctx.strokeRect(
-                    {{bbox_x}},
-                    {{bbox_y}},
-                    {{bbox_width}},
-                    {{bbox_height}}
-                );
-            }
+            ctx.strokeStyle = 'red';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(bx, by, bw, bh);
         }
         image.src = `data:image/png;base64,{{image_data}}`;
     </script>
     {% endif %}
+
     {% if bbox_x %}
     <h2>Bounding Box</h2>
-    <pre>{{ bbox_x }}, {{ bbox_y }}, {{ bbox_width }}, {{ bbox_height }}</pre>
+    <pre>{{ bbox_x }}, {{ bbox_y }}, {{ bbox_y }}, {{ bbox_y }}</pre>
+    <br>
     {% endif %}
+
 </body>
 </html>

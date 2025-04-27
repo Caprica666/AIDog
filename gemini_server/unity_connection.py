@@ -1,6 +1,5 @@
 import httpx
-import flask
-from flask import Flask, request, jsonify
+from flask import jsonify
 import io
 import numpy as np
 import logging
