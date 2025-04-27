@@ -1,9 +1,11 @@
 Library/
 Logs/
 Temp/
-__pycache__/
+obj/
+gemini_server/__pycache__/
 Assets/Plugins/
 .fake
 .vs/
-mcpenv/Lib/
+gemini_server/.venv
+gemini_server/.vscode
 
