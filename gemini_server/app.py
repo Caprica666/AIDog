@@ -1,0 +1,113 @@
+#
+# Web server to find objects in a Unity 3D scene.
+# This server accepts commands to find named objects in the scene.
+# The images of the scene are obtained by requesting them from the Unity application.
+# The Unity application is running on a different port and is responsible for rendering the scene.
+# 3D scene, capturing images from the scene's camera and sending them to this server.
+# The server uses Google Gemini to find the objects in the images returned from Unity.
+#
+# The server should display an input form for the user to enter the command.
+# When a command is submitted, the server asks the Unity application for a new image.
+# The image is sent to Gemini, along with the command.
+# If the object is found in the image, its bounding box is sent back to the Unity application.
+#
+# The server should display an HTML page with an input form for the user to enter the command.
+# Below the command, it should display the current image returned from Unity.
+# If a bounding box is found, it should be displayed on the image.
+# The server should display a status line showing the text returned from Gemini
+# and the bounding box coordinates, if any.
+#
+
+#
+# Display the HTML page with the input form and an area for the current image.
+# The page should also display the text returned from Gemini and the bounding box coordinates.
+#
+
+import base64
+import json
+import flask
+import io
+from gemini_connection import GeminiClient
+from unity_connection import UnityConnection
+from flask import Flask, render_template, request
+import logging
+
+
+UNITY_APP_URL = "http://localhost:5000"
+UNITY_CONNECT_PORT = 5001
+
+app = Flask(__name__)
+gemini = GeminiClient()
+unity = UnityConnection(app, UNITY_APP_URL)
+
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger("UserInterface")
+logger.setLevel(logging.DEBUG)
+
+@app.route("/", methods=["GET", "POST"])
+def show_startup_page():
+    """Display the startup page and handle form submissions."""
+    logger.debug("displaying index.html")
+    return render_template("index.html")
+
+@app.route("/submit_command", methods=["POST"])
+def submit_command():
+    """Handle form submission and process the command."""
+    command = request.form.get("command")
+    if command:
+        response = on_command_received(command)
+        return response
+    return render_template("index.html", status_line="No command provided.")
+
+#
+# Called when the user enters a command and submits the form.
+# The server should ask the Unity application for a new image.    
+def on_command_received(command):
+    """Handle the command received from the user."""
+    logger.debug("on_command_received  ", command)
+    image = unity.image_from_unity()
+    
+    # if the image cannot be obtained, show the error in the status line
+    if image is None:
+        status_line = "Failed to get image from Unity."
+        return status_line
+    # Use Gemini to find the object in the image
+    response = gemini.find_object(command, image)
+    
+
+    # Parse the response from Gemini and convert it to a dictionary
+    try:
+        response_dict = json.loads(response)
+        # Check if the response contains bounding boxes
+        if response_dict:
+            first_entry = response_dict[0]
+            object_name = first_entry['label']
+            bbox = first_entry['box_2d']
+            # gemini returns the bounding box in a 1000x1000 coordinate system
+            # convert it to a 512x512 coordinate system
+            bbox = [int(coord * 512 / 1000) for coord in bbox]
+            object_name = first_entry['label']
+            # Send the bounding box to Unity
+            unity.bounds_to_unity(object_name, bbox)
+            status_line = f"Found object: {object_name} {bbox}"
+            return draw_image_and_box(image, bbox)
+        else:
+            status_line = "No objects found."
+    except json.JSONDecodeError as e:
+        status_line = "Failed to parse Gemini response. {e}"
+    return status_line 
+    
+def draw_image_and_box(image_png_data, bbox):
+    """Draw the bounding box on the image."""
+    # Convert the image to a format suitable for display in HTML
+    image_memory_file = io.BytesIO(image_png_data)
+    image_data = image_memory_file.getvalue()
+    imageb64 = base64.b64encode(image_data).decode('utf-8')
+    return render_template("index.html", bounding_boxes=bbox, image_data=imageb64)
+
+def main():
+    logger.debug("running web server")
+    app.run(port=UNITY_CONNECT_PORT, use_reloader=False, debug=False)
+
+
+

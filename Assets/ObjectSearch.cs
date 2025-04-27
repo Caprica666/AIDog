@@ -5,6 +5,7 @@ using System.Threading;
 using System.Net;
 using System.IO;
 using System;
+using Unity.VisualScripting.InputSystem;
 
 public class ObjectSearch : MonoBehaviour
 {
@@ -17,6 +18,7 @@ public class ObjectSearch : MonoBehaviour
     private HttpListener httpListener;
     private Thread listenerThread;
     private UnityMainThreadDispatcher mainThreadDispatcher;
+    private string outputType = "PNG";
 
     void Start()
     {
@@ -79,29 +81,28 @@ public class ObjectSearch : MonoBehaviour
     {
         var request = context.Request;
         var response = context.Response;
+        byte[] imageBytes = null;
 
-        if (request.HttpMethod == "GET" && request.Url.AbsolutePath == "/image_from_unity" && request.QueryString["object_name"] != null)
+        if (request.HttpMethod == "GET" && request.Url.AbsolutePath == "/image_from_unity")
         {
-            string objectName = request.QueryString["object_name"];
-
             // Schedule the CaptureImage call on the main thread
-            byte[] rawImagePixels = null;
             mainThreadDispatcher.Enqueue(() =>
             {
-                rawImagePixels = CaptureImage();
+                imageBytes = (outputType == "PNG") ? CaptureImagePNG() : CaptureImagePixels();
             });
 
-            // Wait for the image capture to complete
-            while (rawImagePixels == null)
+            while (imageBytes == null)
             {
-                Thread.Sleep(10);
+                Thread.Sleep(10); // Wait for the capture to complete
             }
 
-            if (rawImagePixels != null)
+            if (imageBytes != null)
             {
-                response.ContentType = "application/octet-stream";
-                response.ContentLength64 = rawImagePixels.Length;
-                response.OutputStream.Write(rawImagePixels, 0, rawImagePixels.Length);
+                response.ContentType =  (outputType == "PNG") ? "image/png" : "application/octet-stream";
+                response.ContentLength64 = imageBytes.Length;
+                response.OutputStream.Write(imageBytes, 0, imageBytes.Length);
+                response.OutputStream.Write(imageBytes, 0, imageBytes.Length);
+                imageBytes = null;
             }
             else
             {
@@ -146,7 +147,7 @@ public class ObjectSearch : MonoBehaviour
         response.OutputStream.Close();
     }
 
-    private byte[] CaptureImage()
+    private Texture2D CaptureImage()
     {
         RenderTexture renderTexture = captureCamera.targetTexture;
         if (renderTexture == null)
@@ -164,10 +165,21 @@ public class ObjectSearch : MonoBehaviour
         screenShot.Apply();
 
         RenderTexture.active = null;
-
-        // Get raw pixel data
-        return screenShot.GetRawTextureData();
+        return screenShot;
     }
+
+    private byte[] CaptureImagePixels()
+    {
+        Texture2D texture = CaptureImage();
+        return texture.GetRawTextureData();
+    }
+
+    private byte[] CaptureImagePNG()
+    {
+        Texture2D texture = CaptureImage();
+        return texture.EncodeToPNG();
+    }
+
 
     private class BoundsPayload
     {
