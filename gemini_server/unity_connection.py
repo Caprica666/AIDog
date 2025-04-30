@@ -2,13 +2,11 @@ import httpx
 from flask import jsonify
 import io
 import numpy as np
-import logging
-
-logger = logging.getLogger("UnityConnection")
 
 class UnityConnection:
-    def __init__(self, app, unity_app_url):
+    def __init__(self, app, unity_app_url, logger):
         self.app = app
+        self.logger = logger
         self.unity_app_url = unity_app_url
         self.app.add_url_rule('/bounds_to_unity', 'bounds_to_unity', self.bounds_to_unity, methods=['POST'])
         self.app.add_url_rule('/ping', 'ping', self.ping, methods=['GET'])
@@ -17,13 +15,13 @@ class UnityConnection:
         """A simple ping endpoint to check server status."""
         return jsonify({"message": "pong"}), 200
 
-    # 
+    
     def image_from_unity(self):
         """Fetch an image from Unity and convert it to a PNG encoded byte array."""
 
         url = f"{self.unity_app_url}/image_from_unity"
         response = httpx.get(url)
-        logger.debug("image_from_unity response ", response.status_code)
+        self.logger.debug("image_from_unity response ", response.status_code)
 
         if response.status_code == 200:
             image_data = response.content  # Extract binary data from the response

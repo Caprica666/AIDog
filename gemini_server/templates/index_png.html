@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Dog Object Finder</title>
+</head>
+<body>
+    <h1>Unity Object Finder</h1>
+    <form method="POST" action="/submit_command">
+        <label for="command">Enter Command:</label>
+        <input type="text" id="command" name="command" required>
+        <button type="submit">Submit</button>
+    </form>
+
+    <h2>Status</h2>
+    <p>{{ status_line }}</p>
+    <br>
+
+    {% if image_png %}
+    <canvas id="image-canvas" style="border:1px solid #000000;">
+    </canvas>
+    <script>
+        const canvas = document.getElementById('image-canvas');
+        const ctx = canvas.getContext('2d');
+        const image = new Image();
+        bx = "{{ bbox_x }}";
+        by = "{{ bbox_y }}";  
+        bw = "{{ bbox_width }}";
+        bh = "{{ bbox_height }}";
+
+        // Set up the image source
+        image.onload = function () {
+            // Set canvas size to match the image
+            canvas.width = image.width;
+            canvas.height = image.height;
+
+            // Draw the image on the canvas
+            ctx.drawImage(image, 0, 0);
+
+            // Draw the bounding box
+            ctx.strokeStyle = 'red';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(bx, by, bw, bh);
+        }
+        image.src = "{{image_png}}";
+    </script>
+    {% endif %}
+
+    {% if bbox_x %}
+    <h2>Bounding Box</h2>
+    <pre>{{ bbox_x }}, {{ bbox_y }}, {{ bbox_width }}, {{ bbox_height }}</pre>
+    <br>
+    {% endif %}
+
+</body>
+</html>
