@@ -35,7 +35,7 @@ import logging
 
 UNITY_APP_URL = "http://localhost:5000"
 UNITY_CONNECT_PORT = 5001
-USE_GEMINI = False  # Set to False to disable Gemini usage
+USE_GEMINI = True  # Set to False to disable Gemini usage
 
 
 if USE_GEMINI:
@@ -74,29 +74,36 @@ def on_command_received(command):
         status_line = "Failed to get image from Unity."
         return status_line
     # Use Gemini to find the object in the image
-    if not USE_GEMINI:
-        bbox = [128, 128, 300, 300]
-        return draw_image_and_box(image, bbox)
-    
-    response = gemini.find_object(command, image)    
     # Parse the response from Gemini and convert it to a dictionary
     try:
-        response_dict = json.loads(response)
-        # Check if the response contains bounding boxes
-        if response_dict:
-            first_entry = response_dict[0]
-            object_name = first_entry['label']
-            bbox = first_entry['box_2d']
-            # gemini returns the bounding box in a 1000x1000 coordinate system
-            # convert it to a 512x512 coordinate system
-            bbox = [int(coord * 512 / 1000) for coord in bbox]
-            object_name = first_entry['label']
-            # Send the bounding box to Unity
-            unity.bounds_to_unity(object_name, bbox)
-            status_line = f"Found object: {object_name} {bbox}"
-            return draw_image_and_box(image, bbox)
+        if USE_GEMINI:
+            response = gemini.find_object(command, image)    
+            response_dict = json.loads(response)
+            # Check if the response contains bounding boxes
+            if response_dict:
+                first_entry = response_dict[0]
+                object_name = first_entry['label']
+                gemini_bbox = first_entry['box_2d']
+                object_name = first_entry['label']
+            else:
+                status_line = "No objects found."
         else:
-            status_line = "No objects found."
+            gemini_bbox = [469, 638, 585, 765]
+            object_name = "test_object"
+        # gemini returns the bounding box ymin, xmin, ymax, xmax in a 1000x1000 coordinate system
+        # convert it xmin, ymin, width, heigth in a 512x512 coordinate system
+        bbox = [0, 0, 0, 0]
+        bbox[0] = gemini_bbox[1]  # xmin
+        bbox[1] = gemini_bbox[0]  # ymin   
+        bbox[3] = gemini_bbox[2] - gemini_bbox[0]  # ymax - ymin
+        bbox[2] = gemini_bbox[3] - gemini_bbox[1]  # xmax - xmin
+        bbox = [int((coord * 512) / 1000) for coord in bbox]
+
+        # Send the bounding box to Unity
+        unity.bounds_to_unity(object_name, bbox)
+        status_line = f"Found object: {object_name} {bbox}"
+        return draw_image_and_box(image, bbox)
+
     except json.JSONDecodeError as e:
         status_line = "Failed to parse Gemini response. {e}"
     return status_line 
@@ -107,15 +114,16 @@ def draw_image_and_box(image_png_data, bbox):
     image_memory_file = io.BytesIO(image_png_data)
     image_data = image_memory_file.getvalue()
     imageb64 = base64.b64encode(image_data).decode('utf-8')
-   
-    bbox[2] = bbox[2] - bbox[0]
-    bbox[3] = bbox[3] - bbox[1]
+
     return render_template("index.html", bbox_x=bbox[0], bbox_y=bbox[1],
                            bbox_width=bbox[2], bbox_height=bbox[3], image_data=imageb64)
 
 def main():
     logger.debug("running web server")
-    app.run(port=UNITY_CONNECT_PORT, use_reloader=False, debug=False)
+    app.run(port=UNITY_CONNECT_PORT, use_reloader=False, debug=True)
+    
+if __name__ == "__main__":
+    main()
 
 
 
