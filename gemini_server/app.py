@@ -36,8 +36,8 @@ import logging
 
 UNITY_APP_URL = "http://localhost:5000"
 UNITY_CONNECT_PORT = 5001
-USE_GEMINI = False  # Set to False to disable Gemini usage
-USE_PNG_FILE = True  # Set to True to use a PNG file instead of bas64 image data
+USE_GEMINI = True  # Set to False to disable Gemini usage
+USE_PNG_FILE = False  # Set to True to use a PNG file instead of bas64 image data
 INDEX_HTML = "index.html"
 INDEX_HTML_PNG = "index_png.html"
 
@@ -50,6 +50,11 @@ if USE_GEMINI:
 app = Flask(__name__)
 static_dir = os.path.join(app.root_path, 'static')
 unity = UnityConnection(app, UNITY_APP_URL, logger)
+
+capture_robot_camera_image_function = {
+    "name": "capture_robot_camera_image",
+    "description": "Capture an image from the robot camera and return a JSON response containing the image data if available."
+}
 
 @app.route("/", methods=["GET", "POST"])
 def show_startup_page():
@@ -69,14 +74,16 @@ def submit_command():
 #
 # Called when the user enters a command and submits the form.
 # The server should ask the Unity application for a new image.    
-def on_command_received(command):
+def on_command_received1(command):
     """Handle the command received from the user."""
     logger.debug("on_command_received  ", command)
     # if the image cannot be obtained, show the error in the status line
-    image = unity.image_from_unity()
-    if image is None:
+    result = capture_robot_camera_image()
+    
+    if not result["imageAvailable"]:
         status_line = "Failed to get image from Unity."
         return status_line
+    image = result["imageData"]
     if USE_PNG_FILE:
         filename = None
         if USE_GEMINI:
@@ -93,7 +100,10 @@ def on_command_received(command):
     # Parse the response from Gemini and convert it to a dictionary
     try:
         if USE_GEMINI:
-            response = gemini.find_objects_in_image(command, image)    
+            #response = gemini.find_objects_in_image(command, image)
+            response = gemini.call_gemini_with_functions(command, [capture_robot_camera_image_function])
+            logger.debug("Gemini response: ", response)
+            logger.debug("No function call found in Gemini response.")
             response_dict = json.loads(response)
             # Check if the response contains bounding boxes
             if response_dict:
@@ -125,6 +135,68 @@ def on_command_received(command):
     except json.JSONDecodeError as e:
         status_line = "Failed to parse Gemini response. {e}"
     return status_line 
+
+#
+# Called when the user enters a command and submits the form.
+# The server should ask the Unity application for a new image.    
+def on_command_received(command):
+    """Handle the command received from the user."""
+    logger.debug("on_command_received  ", command)
+    # Use Gemini to find the object in the image
+    # Parse the response from Gemini and convert it to a dictionary
+    response = gemini.call_gemini_with_functions(command, [capture_robot_camera_image_function])
+    logger.debug("Gemini response: ", response)
+    if response.candidates[0].content.parts[0].function_call:
+        function_call = response.candidates[0].content.parts[0].function_call
+        print(f"Function to call: {function_call.name}")
+        print(f"Arguments: {function_call.args}")
+        if (function_call.name == "capture_robot_camera_image"):
+            # capture the image from the robot camera
+            # and pass the image data to gemini as a PNG encoded byte array
+            image = capture_robot_camera_image()             
+            if image is None:
+                logger.debug("Failed to capture image")
+                result = { "imageAvailable": False }
+            result = { "imageAvailable": True }
+            logger.debug("Successfully captured image")
+            response = gemini.call_gemini_with_function_response(function_call, result, image)
+    # If the response contains a bounding box, refresh the web page and disply the image with the bounding box
+    if response.candidates[0].content.parts[0].text and image:
+        status_line = "No objects found."
+        bbox, object_name = process_bounding_box(response.candidates[0].content.parts[0].text)
+        if object_name:
+            status_line = f"Found object: {object_name} {bbox}"
+        return draw_image_and_box_data(image, bbox)               
+    return status_line 
+    
+def process_bounding_box(response):
+    text = response[8:]
+    text = text[:text.rfind(']') + 1]
+    logger.debug("Gemini response: ", text)
+    bbox = [0, 0, 0, 0]
+    try:
+        response_dict = json.loads(text)
+        logger.debug("Python dict: ", response_dict)
+        if response_dict:
+            first_entry = response_dict[0]
+            object_name = first_entry['label']
+            gemini_bbox = first_entry['bounding_box']
+            # gemini returns the bounding box ymin, xmin, ymax, xmax in a 1000x1000 coordinate system
+            # convert it xmin, ymin, width, heigth in a 512x512 coordinate system
+
+            bbox[0] = gemini_bbox[1]  # xmin
+            bbox[1] = gemini_bbox[0]  # ymin   
+            bbox[3] = gemini_bbox[2] - gemini_bbox[0]  # ymax - ymin
+            bbox[2] = gemini_bbox[3] - gemini_bbox[1]  # xmax - xmin
+            bbox = [int((coord * 512) / 1000) for coord in bbox]
+            # Send the bounding box to Unity
+            unity.bounds_to_unity(object_name, bbox)
+            return bbox, object_name
+        else:
+            return bbox, None
+    except json.JSONDecodeError as e:
+        logger.debug("Failed to parse Gemini response", e.msg)
+        return None, None
     
 def draw_image_and_box_data(image_png_data, bbox):
     """
@@ -152,7 +224,16 @@ def draw_image_and_box_file(filename, bbox):
     return render_template(INDEX_HTML_PNG, bbox_x=bbox[0], bbox_y=bbox[1],
                            bbox_width=bbox[2], bbox_height=bbox[3], image_png=url_for('static', filename=filename))
 
-
+def capture_robot_camera_image():
+    """
+    Capture an image from the robot camera and return it as a PNG encoded byte array.
+    
+    returns:
+        The image if it was captured successfully, otherwise None.
+    
+    """
+    return unity.image_from_unity()
+    
 def main():
     logger.debug("running web server")
     if not os.path.exists(static_dir):

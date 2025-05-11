@@ -12,7 +12,11 @@ class GeminiClient:
         self.logger = logger
         self.client = genai.Client(api_key=GEMINI_API_KEY)
         self.model_name = model_name # @param ["gemini-1.5-flash-latest","gemini-2.0-flash-lite","gemini-2.0-flash","gemini-2.5-flash-preview-04-17","gemini-2.5-pro-exp-03-25"] {"allow-input":true}
-        self.bounding_box_system_instructions = """
+        self.initial_prompt = """
+            You are controlling a robot that has a camera. You can see the world through the robot's camera.
+            You can find objects the robot sees and return their bounding boxes.
+            You are not allowed to generate any code or images.
+            You are not allowed to generate any content that is not related to the image.
             Return bounding boxes as a JSON array with labels. Never return masks or code fencing. Limit to 10 objects.
             If an object is present multiple times, name them according to their unique characteristic (colors, size, position, unique characteristics, etc..).
             """
@@ -22,7 +26,7 @@ class GeminiClient:
                 threshold="BLOCK_ONLY_HIGH",
             ),
         ]
-        
+                
     def call_gemini_text(self, prompt, config: Optional[types.GenerateContentConfig] = None):
         """Call Gemini with text prompt and return text."""
         response = self.client.models.generate_content(
@@ -32,7 +36,62 @@ class GeminiClient:
         )
         # Check output
         return response.text
+    
+    def call_gemini_with_functions(self, prompt, function_list):
+        self.contents = [ types.Content(role = "user", parts = [ types.Part(text = prompt) ]) ]
+        tools = self.convert_functions_to_gemini_tools(function_list)
+        try:
+            self.config = types.GenerateContentConfig(
+                    system_instruction = self.initial_prompt,
+                    safety_settings = self.safety_settings,
+                    tools = tools,
+                    automatic_function_calling = types.AutomaticFunctionCallingConfig(disable = True),
+                    #response_mime_type = 'application/json'
+                )
+        except Exception as e:
+            self.logger.error(f"GenerateContentConfig call failed: {str(e)}")
+            raise
+        response = self.client.models.generate_content(
+            model=self.model_name,
+            contents=self.contents,
+            config=self.config
+        )
+        return response
+        
+    def call_gemini_with_function_response(self, function_call, function_result, image):
+        function_response_part = types.Part.from_function_response(
+            name = function_call.name,
+            response = function_result
+        )
+        # Append function call and result of the function execution to contents
+        self.contents.append(types.Content(role="model", parts = [types.Part(function_call=function_call)])) # Append the model's function call message
+        self.contents.append(types.Content(role="user", parts = [function_response_part])) # Append the function response
+        if image is not None:
+            image_part = types.Part.from_bytes(data=image, mime_type="image/png")
+            self.contents.append(types.Content(role="user", parts = [image_part]))
+        final_response = self.client.models.generate_content(
+            model=self.model_name,
+            config=self.config,
+            contents=self.contents,
+        )
+        return final_response
 
+    def convert_function_to_gemini_tool(self, function):
+        """Convert a function to Gemini format.""" 
+        func_decl = types.FunctionDeclaration(
+            name = function["name"],
+            description = function["description"])
+        tool = types.Tool(function_declarations = [func_decl])
+        return tool
+    
+    def convert_functions_to_gemini_tools(self, function_list):
+        """Convert function list to Gemini format."""
+        tools = []
+        for function in function_list:
+            tool = self.convert_function_to_gemini_tool(function)     
+            tools.append(tool)
+        return tools
+    
     # Find the objects in the image designated in the prompt.
     # The image is passed as a PNG encoded byte array.
     # The prompt is a string that describes the objects to find.
