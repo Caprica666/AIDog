@@ -14,31 +14,28 @@ class GeminiClient:
         self.model_name = model_name # @param ["gemini-1.5-flash-latest","gemini-2.0-flash-lite","gemini-2.0-flash","gemini-2.5-flash-preview-04-17","gemini-2.5-pro-exp-03-25"] {"allow-input":true}
         self.initial_prompt = """
             You are controlling a robot that has a camera. You can see the world through the robot's camera.
-            You can find objects the robot sees and return their bounding boxes.
-            You are not allowed to generate any code or images.
-            You are not allowed to generate any content that is not related to the image.
+            You will be asked to find objects the robot sees and return their bounding boxes.
+            If the object is not found in the image provided, return its bounding box.
             Return bounding boxes as a JSON array with labels. Never return masks or code fencing. Limit to 10 objects.
             If an object is present multiple times, name them according to their unique characteristic (colors, size, position, unique characteristics, etc..).
-            """
+            If the object is not found in the image, call the turn_robot_camera function with the following arguments:
+                - amount_to_turn: The number of degrees to turn the camera (use 30 degrees).
+                - direction: The direction to turn the camera (use "clockwise" here).
+            This function will provide a new image of what the robot sees after it turns.
+            It will provide a new current angle for the robot and set at_start_angle to True if turning the robot brings it back to the starting angle.
+            If at_start_angle is True, indicate that the object is not found and do not turn the robot camera further.
+        """
         self.safety_settings = [
             types.SafetySetting(
                 category="HARM_CATEGORY_DANGEROUS_CONTENT",
                 threshold="BLOCK_ONLY_HIGH",
             ),
         ]
-                
-    def call_gemini_text(self, prompt, config: Optional[types.GenerateContentConfig] = None):
-        """Call Gemini with text prompt and return text."""
-        response = self.client.models.generate_content(
-            model=self.model_name,
-            contents = [prompt],
-            config = config
-        )
-        # Check output
-        return response.text
-    
-    def call_gemini_with_functions(self, prompt, function_list):
+        
+    def call_with_functions(self, prompt, image, function_list):
         self.contents = [ types.Content(role = "user", parts = [ types.Part(text = prompt) ]) ]
+        image_part = types.Part.from_bytes(data=image, mime_type="image/png")
+        self.contents.append(types.Content(role="user", parts = [image_part]))
         tools = self.convert_functions_to_gemini_tools(function_list)
         try:
             self.config = types.GenerateContentConfig(
@@ -46,7 +43,6 @@ class GeminiClient:
                     safety_settings = self.safety_settings,
                     tools = tools,
                     automatic_function_calling = types.AutomaticFunctionCallingConfig(disable = True),
-                    #response_mime_type = 'application/json'
                 )
         except Exception as e:
             self.logger.error(f"GenerateContentConfig call failed: {str(e)}")
@@ -58,7 +54,7 @@ class GeminiClient:
         )
         return response
         
-    def call_gemini_with_function_response(self, function_call, function_result, image):
+    def call_with_function_response(self, function_call, function_result, image):
         function_response_part = types.Part.from_function_response(
             name = function_call.name,
             response = function_result
@@ -119,45 +115,9 @@ class GeminiClient:
         # Check output
         self.logger.debug("find_objects_in_image: ", response.text)
         return response.text
-    
-    def convert_prompt_to_filename(self, user_prompt: str) -> str:
-        """Convert a text prompt into a suitable filename.
-        
-        Args:
-            prompt: The text prompt from the user
-            
-        Returns:
-            A concise, descriptive filename generated based on the prompt
-        """
-        try:
-            # Create a prompt for Gemini to generate a filename
-            filename_prompt = f"""
-            Based on this user prompt: "{user_prompt}"
-            
-            Generate a short, descriptive file name.
-            The filename should:
-            - Be concise (maximum 5 words)
-            - Use underscores between words
-            - Not include any file extension
-            - Only return the filename, nothing else
-            """
-            
-            # Call Gemini and get the filename
-            filename = self.call_gemini_text(filename_prompt)
-            self.logger.info(f"convert_prompt_to_filename: {filename}")
-            
-            # Return the filename only, without path or extension
-            return filename
-    
-        except Exception as e:
-            self.logger.error(f"Error generating filename with Gemini: {str(e)}")
-            # Fallback to a simple filename if Gemini fails
-            truncated_text = user_prompt[:12].strip()
-            return f"image_{truncated_text}_{str(uuid.uuid4())[:8]}"
 
 
 
 
 
 
-        

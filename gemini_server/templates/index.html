@@ -38,6 +38,13 @@
             // Draw the image on the canvas
             ctx.drawImage(image, 0, 0);
 
+            if (bw > 0 && bh > 0)
+            {
+                // Draw the bounding box
+                ctx.strokeStyle = 'red';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(bx, by, bw, bh);
+            }
             // Draw the bounding box
             ctx.strokeStyle = 'red';
             ctx.lineWidth = 2;

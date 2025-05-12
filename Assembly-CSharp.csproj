@@ -66,6 +66,7 @@
     <Compile Include="Assets\TutorialInfo\Scripts\Readme.cs" />
     <Compile Include="Assets\MCPAgentUI.cs" />
     <Compile Include="Assets\UnityMainThreadDispatcher.cs" />
+    <Compile Include="Assets\RobotController.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Assets\TextMesh Pro\Shaders\TMPro.cginc" />
