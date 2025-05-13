@@ -5,6 +5,9 @@ import os
 from typing import Optional
 
 class GeminiClient:
+    """
+    A class to interact with the Gemini API for object detection and bounding box generation.
+    Sets up the initial prompt and safety settings for the Gemini model."""
     def __init__(self, logger, model_name="gemini-2.5-pro-exp-03-25"):
         GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
         if (GEMINI_API_KEY is None):
@@ -20,7 +23,7 @@ class GeminiClient:
             If an object is present multiple times, name them according to their unique characteristic (colors, size, position, unique characteristics, etc..).
             If the object is not found in the image, call the turn_robot_camera function with the following arguments:
                 - amount_to_turn: The number of degrees to turn the camera (use 30 degrees).
-                - direction: The direction to turn the camera (use "clockwise" here).
+                - direction: The direction to turn the camera (use "counterclockwise" here).
             This function will provide a new image of what the robot sees after it turns.
             It will provide a new current angle for the robot and set at_start_angle to True if turning the robot brings it back to the starting angle.
             If at_start_angle is True, indicate that the object is not found and do not turn the robot camera further.
@@ -33,6 +36,19 @@ class GeminiClient:
         ]
         
     def call_with_functions(self, prompt, image, function_list):
+        """
+        Call the Gemini API with a prompt and an image, and return the response.
+        Args:
+            prompt: The text prompt from the user.
+            image: The image data as a PNG encoded byte array.
+            function_list: A list of functions to be used in the API call.
+        Returns:
+            A dictionary containing the function call, arguments, and text response.
+            function_call: The function call made by the model.
+            args: The arguments passed to the function.
+            function_name: The name of the function called.
+            text: The text response from the model.   
+        """
         self.contents = [ types.Content(role = "user", parts = [ types.Part(text = prompt) ]) ]
         image_part = types.Part.from_bytes(data=image, mime_type="image/png")
         self.contents.append(types.Content(role="user", parts = [image_part]))
@@ -52,9 +68,30 @@ class GeminiClient:
             contents=self.contents,
             config=self.config
         )
-        return response
+        parts = response.candidates[0].content.parts
+        result = { }
+        for part in parts:
+            if part.function_call:
+                result["function_call"] =  part.function_call
+                result["args"] = part.function_call.args
+                result["function_name"] = part.function_call.name
+            if part.text:
+                text_part = part.text
+                result["text"] = text_part
+        return result
         
     def call_with_function_response(self, function_call, function_result, image):
+        """
+        Call the Gemini API with a function call and its result, and return the response.  
+        Args:
+            function_call: The function call made by the model.
+            function_result: The result of the function call.
+            image: The image data as a PNG encoded byte array.
+            Returns:                
+                Response from the Gemini API after executing the function call.
+                This should be a list of bounding boxes and labels of the objects found
+                or a message indicating that the object was not found.
+        """
         function_response_part = types.Part.from_function_response(
             name = function_call.name,
             response = function_result
@@ -73,7 +110,13 @@ class GeminiClient:
         return final_response
 
     def convert_function_to_gemini_tool(self, function):
-        """Convert a function to Gemini format.""" 
+        """
+        Convert a function description to a Gemini Tool.
+        Args:
+            function: A dictionary containing the function name and description.
+        Returns:
+            A Gemini Tool object containing the function declaration.
+        """ 
         func_decl = types.FunctionDeclaration(
             name = function["name"],
             description = function["description"])
@@ -81,17 +124,19 @@ class GeminiClient:
         return tool
     
     def convert_functions_to_gemini_tools(self, function_list):
-        """Convert function list to Gemini format."""
+        """
+        Convert a list of function descriptions to Gemini Tools.
+        Args:
+            function_list: A list of dictionaries containing function names and descriptions.
+            Returns:
+                A list of Gemini Tool objects containing the function declarations.
+        """
         tools = []
         for function in function_list:
             tool = self.convert_function_to_gemini_tool(function)     
             tools.append(tool)
         return tools
-    
-    # Find the objects in the image designated in the prompt.
-    # The image is passed as a PNG encoded byte array.
-    # The prompt is a string that describes the objects to find.
-    def find_objects_in_image(self, prompt, image):
+
         """Find objects in the image using Gemini API.
         
         Args:

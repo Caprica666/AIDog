@@ -50,8 +50,8 @@ class UnityConnection:
 
         Returns:
             A JSON response indicating whether the camera is at the start angle after the turn.
-            "at_start_angle": True if the camera is at the start angle, False otherwise.
-            "current_angle": The current angle of the camera after the turn.
+            at_start_angle: True if the camera is at the start angle, False otherwise.
+            current_angle: The current angle of the camera after the turn.
             None is returned if a response or image cannot be obtained.
         """
         url = f"{self.unity_app_url}/turn_robot_camera"
@@ -76,6 +76,12 @@ class UnityConnection:
 
     # Post the bounds for an object to Unity
     def bounds_to_unity(self, object_name, bbox):
+        """
+        Send the bounding box of an object to Unity.
+        Args:
+            object_name: The name of the object.
+            bbox: The bounding box coordinates in the format [x, y, width, height]. 
+        """
         url = f"{self.unity_app_url}/bounds_to_unity"
         payload = {"object_name": object_name, "bounding_box": bbox}
         response = httpx.post(url, json=payload)
