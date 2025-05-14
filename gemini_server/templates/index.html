@@ -40,14 +40,19 @@
                 }
                 if (data.image)
                 {
-                    if (data.bx && data.by && data.bw && data.bh)
+                    if (data.bbox &&
+                        (data.bbox[0] != null) &&
+                        (data.bbox[1] != null) &&
+                        (data.bbox[2] > 0) &&
+                        (data.bbox[3] > 0))
                     {
-                        document.getElementById('bbox').innerText = `Bounding Box: (${data.bx}, ${data.by}, ${data.bw}, ${data.bh})`;
-                        displayImage(data.image, data.bx, data.by, data.bw, data.bh);
+                        boxstr = "Bounding Box: " + data.bbox[0] + ", " + data.bbox[1] + ", " + data.bbox[2] + ", " + data.bbox[3]; 
+                        document.getElementById('bbox').innerText = boxstr; 
+                        displayImage(data.image, data.bbox);
                     }
                     else
                     {
-                        displayImage(data.image, 0, 0, 0, 0);
+                        displayImage(data.image, [0, 0, 0, 0]);
                         document.getElementById('bbox').innerText = 'No bounding box found.';
                         if (data.action == 'resubmit')
                         {
@@ -71,7 +76,7 @@
 
         document.getElementById('control_robot').addEventListener('submit', onSubmit);
 
-        function displayImage(image_data, bx, by, bw, bh)
+        function displayImage(image_data, bbox)
         {
             const canvas = document.getElementById('image-canvas');
             const ctx = canvas.getContext('2d');
@@ -87,17 +92,13 @@
                 // Draw the image on the canvas
                 ctx.drawImage(image, 0, 0);
 
-                if (bw > 0 && bh > 0)
+                if (bbox[2] > 0 && bbox[3] > 0)
                 {
                     // Draw the bounding box
                     ctx.strokeStyle = 'red';
                     ctx.lineWidth = 2;
-                    ctx.strokeRect(bx, by, bw, bh);
+                    ctx.strokeRect(bbox[0], bbox[1], bbox[2], bbox[3]);
                 }
-                // Draw the bounding box
-                ctx.strokeStyle = 'red';
-                ctx.lineWidth = 2;
-                ctx.strokeRect(bx, by, bw, bh);
             }
             image.src = image_data;
         }

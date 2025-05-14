@@ -46,7 +46,7 @@ logger = logging.getLogger("UserInterface")
 logger.setLevel(logging.DEBUG)
 
 if USE_GEMINI:
-    gemini = GeminiClient(logger)
+    gemini = GeminiClient(logger, "gemini-2.0-flash")
 app = Flask(__name__)
 static_dir = os.path.join(app.root_path, 'static')
 unity = UnityConnection(app, UNITY_APP_URL, logger)
@@ -139,9 +139,7 @@ def on_command_received(command):
         bbox: The bounding box coordinates of the object in the image
     """
     logger.debug("on_command_received  ", command)
-    result = {"status": "No objects found.", "action": None }
     result = process_command(command)
-
     if "object_name" in result and "bbox" in result:
         object_name = result["object_name"]
         bbox = result["bbox"]
@@ -170,30 +168,30 @@ def process_command(command):
     """
     # Use the LLM to find the object in the image
     # Provide the LLM with a function to turn the robot camera
+    result = { "action": None }
     response = gemini.call_with_functions(command, unity.current_image, [turn_robot_camera_function])
     logger.debug("LLM response: ", response)
-    result = { "status": "No objects found", "action": None }
-    
+    if "status" in response and "ERROR" in response["status"]:
+        result["status"] = response["status"]
+        return result
+    # If the LLM indicates the object is not found, check if it wants to turn the camera   
     # If the response contains a function call, execute the function
     # and pass the result back to the LLM        
-    if response["function_call"]:
+    if "function_call" in response:
         function_call = response["function_call"]
         args = response["args"]
         print("Function to call: " + response["function_name"])
-        print("Arguments: " + args)
         if (response["function_name"] == "turn_robot_camera"):
             # capture the image from the robot camera
             # and pass the image data to the LLM as a PNG encoded byte array
             if "amount_to_turn" not in args or "direction" not in args:
                 result["status"] = "Missing required arguments for turn_robot_camera function."
-                result["action"] = None
                 logger.debug("Missing required arguments for turn_robot_camera function.")
                 return result
             turn_params["amount_to_turn"] = args["amount_to_turn"]
             turn_params["direction"] = args["direction"]
             func_response = turn_robot_camera(turn_params)             
             if func_response is None:
-                result["action"] = None
                 result["status"] = "Could not turn robot camera."
                 return result
             turn_params["current_angle"] = func_response["current_angle"]
@@ -201,7 +199,7 @@ def process_command(command):
             # if the function provided a result, call Gemini with the function result
             response = gemini.call_with_function_response(function_call, func_response, unity.current_image)
     # If the response contains a bounding box, include it in the result
-    if response["text"]:
+    if "text" in response:
         if "json" in response["text"][:8]:
             result = process_bounding_box(response["text"], result)
     # If we have captured an image from the robot camera, include it in the result
@@ -228,6 +226,7 @@ def process_bounding_box(response, result):
     """
     text = response[8:]
     text = text[:text.rfind(']') + 1]
+    bbox = [ 0, 0, 0, 0 ]
     try:
         response_dict = json.loads(text)
         logger.debug("Python dict: ", response_dict)
@@ -238,6 +237,10 @@ def process_bounding_box(response, result):
                 gemini_bbox = first_entry['bounding_box']
             elif "box_2d" in first_entry:
                 gemini_bbox = first_entry['box_2d']
+            elif "box_box" in first_entry:
+                gemini_bbox = first_entry['box_box']
+            elif "bbox" in first_entry:
+                gemini_bbox = first_entry['bbox']
             else:
                 return { "status": "No objects found", "action": "resubmit"}
             # The LLM returns the bounding box ymin, xmin, ymax, xmax in a 1000x1000 coordinate system

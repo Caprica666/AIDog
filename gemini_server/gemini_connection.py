@@ -9,24 +9,35 @@ class GeminiClient:
     A class to interact with the Gemini API for object detection and bounding box generation.
     Sets up the initial prompt and safety settings for the Gemini model."""
     def __init__(self, logger, model_name="gemini-2.5-pro-exp-03-25"):
-        GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
-        if (GEMINI_API_KEY is None):
-            raise ValueError("GEMINI_API_KEY environment variable not set.")
+        self.gemini_key_var = "GEMINI_API_KEY_ANNE"
+        #self.gemini_key_var = "GEMINI_API_KEY"
+        self.GEMINI_API_KEY = os.getenv(self.gemini_key_var)
+        if (self.GEMINI_API_KEY is None):
+            raise ValueError(self.gemini_key_var + "environment variable not set.")
         self.logger = logger
-        self.client = genai.Client(api_key=GEMINI_API_KEY)
+        self.client = genai.Client(api_key = self.GEMINI_API_KEY)
         self.model_name = model_name # @param ["gemini-1.5-flash-latest","gemini-2.0-flash-lite","gemini-2.0-flash","gemini-2.5-flash-preview-04-17","gemini-2.5-pro-exp-03-25"] {"allow-input":true}
         self.initial_prompt = """
             You are controlling a robot that has a camera. You can see the world through the robot's camera.
             You will be asked to find objects the robot sees and return their bounding boxes.
-            If the object is not found in the image provided, return its bounding box.
-            Return bounding boxes as a JSON array with labels. Never return masks or code fencing. Limit to 10 objects.
-            If an object is present multiple times, name them according to their unique characteristic (colors, size, position, unique characteristics, etc..).
+            You will be given a prompt that describes the object to find.
+            If the object is found in the image provided, return its name and bounding box.
             If the object is not found in the image, call the turn_robot_camera function with the following arguments:
-                - amount_to_turn: The number of degrees to turn the camera (use 30 degrees).
-                - direction: The direction to turn the camera (use "counterclockwise" here).
-            This function will provide a new image of what the robot sees after it turns.
-            It will provide a new current angle for the robot and set at_start_angle to True if turning the robot brings it back to the starting angle.
-            If at_start_angle is True, indicate that the object is not found and do not turn the robot camera further.
+                - amount_to_turn: The number of degrees to turn the camera (make the value 30 degrees).
+                - direction: The direction to turn the camera (make the value "counterclockwise").
+            This function will return a JSON response with:
+            - image: new image of what the robot sees after it turns.
+            - current_angle: current amount the robot has turned in degrees with respect to start_angle
+            - at_start_angle: True if turning the robot brings it back to the starting angle, false to turn further.
+                              If True, indicate that the object is not found and do not turn the robot camera further.
+            Rules:
+            1. Return bounding boxes as a JSON array with the following format:
+                - label: The name of the object.
+                - bbox: The bounding box coordinates in the format [x, y, width, height].
+            2. Never return masks or code fencing.
+            3. Limit to 10 objects.
+            4. If an object is present multiple times, name them according to their unique characteristic (colors, size, position, unique characteristics, etc..).
+
         """
         self.safety_settings = [
             types.SafetySetting(
@@ -53,6 +64,7 @@ class GeminiClient:
         image_part = types.Part.from_bytes(data=image, mime_type="image/png")
         self.contents.append(types.Content(role="user", parts = [image_part]))
         tools = self.convert_functions_to_gemini_tools(function_list)
+        result = { }
         try:
             self.config = types.GenerateContentConfig(
                     system_instruction = self.initial_prompt,
@@ -60,16 +72,16 @@ class GeminiClient:
                     tools = tools,
                     automatic_function_calling = types.AutomaticFunctionCallingConfig(disable = True),
                 )
+            response = self.client.models.generate_content(
+                model=self.model_name,
+                contents=self.contents,
+                config=self.config
+            )
         except Exception as e:
-            self.logger.error(f"GenerateContentConfig call failed: {str(e)}")
-            raise
-        response = self.client.models.generate_content(
-            model=self.model_name,
-            contents=self.contents,
-            config=self.config
-        )
+            self.logger.error(f"Genmini call failed: {str(e)}")
+            result["status"] = "ERROR: " + str(e)
+            return result
         parts = response.candidates[0].content.parts
-        result = { }
         for part in parts:
             if part.function_call:
                 result["function_call"] =  part.function_call
@@ -102,12 +114,16 @@ class GeminiClient:
         if image is not None:
             image_part = types.Part.from_bytes(data=image, mime_type="image/png")
             self.contents.append(types.Content(role="user", parts = [image_part]))
-        final_response = self.client.models.generate_content(
-            model=self.model_name,
-            config=self.config,
-            contents=self.contents,
-        )
-        return final_response
+        try:
+            final_response = self.client.models.generate_content(
+                model=self.model_name,
+                config=self.config,
+                contents=self.contents,
+            )
+            return final_response
+        except Exception as e:
+            self.logger.error(f"Genmini call failed: {str(e)}")
+            return { "text" : "ERROR: " + str(e) }
 
     def convert_function_to_gemini_tool(self, function):
         """
