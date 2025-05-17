@@ -12,6 +12,7 @@ class UnityConnection:
         self.app.add_url_rule('/bounds_to_unity', 'bounds_to_unity', self.bounds_to_unity, methods=['POST'])
         self.app.add_url_rule('/ping', 'ping', self.ping, methods=['GET'])
         self.current_image = self.image_from_unity()
+        self.image_size = 256
 
     def ping(self):
         """A simple ping endpoint to check server status."""
@@ -33,7 +34,7 @@ class UnityConnection:
                 # Convert the binary data to a numpy array               
                 raw_pixels = io.BytesIO(image_data).getvalue()
                 # Convert raw pixel data to a numpy 2D array
-                image_array = np.frombuffer(raw_pixels, dtype=np.uint8).reshape((512, 512, 3))
+                image_array = np.frombuffer(raw_pixels, dtype=np.uint8).reshape((self.image_size, self.image_size, 3))
                 return image_array
         else:
             return None
@@ -52,27 +53,34 @@ class UnityConnection:
             A JSON response indicating whether the camera is at the start angle after the turn.
             at_start_angle: True if the camera is at the start angle, False otherwise.
             current_angle: The current angle of the camera after the turn.
-            None is returned if a response or image cannot be obtained.
+            error: An error message if the request fails.
         """
         url = f"{self.unity_app_url}/turn_robot_camera"
         json_params = json.dumps(params)  # Convert params to a JSON string
-        response = httpx.post(url, data=json_params, headers={"Content-Type": "application/json"})
-        
-        if response.status_code == 200:
-            if response.headers.get('Content-Type') == 'application/json':
-                json_response = response.json()
-            elif response.headers.get('Content-Type') == 'text/plain':
-                # If the response is plain text, parse it as JSON
-                json_response = json.loads(response.text)
+        json_response = { }
+        try:
+            response = httpx.post(url, data=json_params, headers={"Content-Type": "application/json"})
+            if response.status_code == 200:
+                if response.headers.get('Content-Type') == 'application/json':
+                    json_response = response.json()
+                elif response.headers.get('Content-Type') == 'text/plain':
+                    # If the response is plain text, parse it as JSON
+                    json_response = json.loads(response.text)
+                else:
+                    json_response["error"] = "Unexpected content type"
+                    self.logger.debug("Unexpected content type")
+                    return json_response
+                image = self.image_from_unity()
+                if image is not None:
+                    self.current_image = image
+                    self.logger.debug("Successfully turned robot and captured image")
             else:
-                return None
-            image = self.image_from_unity()
-            if image is not None:
-                self.current_image = image
-                self.logger.debug("Successfully turned robot and captured image")
-                return json_response
-        self.logger.debug("Failed to turn robot or capture image")
-        return None
+                json_response["error"] = "Failed to turn robot or capture image"
+                self.logger.debug("Failed to turn robot or capture image")
+        except httpx.RequestError as e:
+            self.logger.error(f"Request failed: {e}")
+            json_response["error"] = str(e)
+        return json_response
 
     # Post the bounds for an object to Unity
     def bounds_to_unity(self, object_name, bbox):

@@ -8,7 +8,7 @@ class GeminiClient:
     """
     A class to interact with the Gemini API for object detection and bounding box generation.
     Sets up the initial prompt and safety settings for the Gemini model."""
-    def __init__(self, logger, model_name="gemini-2.5-pro-exp-03-25"):
+    def __init__(self, logger, model_name="gemini-2.5-pro-preview-05-06"):
         self.gemini_key_var = "GEMINI_API_KEY_ANNE"
         #self.gemini_key_var = "GEMINI_API_KEY"
         self.GEMINI_API_KEY = os.getenv(self.gemini_key_var)
@@ -33,9 +33,9 @@ class GeminiClient:
             Rules:
             1. Return bounding boxes as a JSON array with the following format:
                 - label: The name of the object.
-                - bbox: The bounding box coordinates in the format [x, y, width, height].
+                - bbox: The bounding box coordinates in the format [ymin, xmin, ymax, xmax].
             2. Never return masks or code fencing.
-            3. Limit to 10 objects.
+            3. Limit to 5 objects.
             4. If an object is present multiple times, name them according to their unique characteristic (colors, size, position, unique characteristics, etc..).
 
         """

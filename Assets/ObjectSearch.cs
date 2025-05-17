@@ -12,7 +12,7 @@ public class ObjectSearch : MonoBehaviour
 {
     public Camera captureCamera; // Reference to the camera to capture from
     public string unityListenerUrl = "http://localhost:5000/"; // URL of the agent server
-    public int TextureSize = 512;
+    public int TextureSize;
 
 
     private string objectName;
@@ -196,6 +196,7 @@ public class ObjectSearch : MonoBehaviour
             response.ContentLength64 = imageBytes.Length;
             response.OutputStream.Write(imageBytes, 0, imageBytes.Length);
             response.OutputStream.Write(imageBytes, 0, imageBytes.Length);
+//           File.WriteAllBytes("capturedimage.png", imageBytes);
             imageBytes = null;
         }
         else

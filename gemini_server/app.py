@@ -30,7 +30,7 @@ import io
 import os
 from gemini_connection import GeminiClient
 from unity_connection import UnityConnection
-from flask import Flask, render_template, request, url_for
+from flask import Flask, render_template, request
 import logging
 
 
@@ -136,7 +136,7 @@ def on_command_received(command):
         action: The action to take (e.g., "resubmit" if the command needs to be reprocessed)
         image: The image data as a base64 encoded string
         object_name: The name of the object found in the image
-        bbox: The bounding box coordinates of the object in the image
+        bbox: The bounding box coordinates of the object in the image in the format [x, y, width, height]
     """
     logger.debug("on_command_received  ", command)
     result = process_command(command)
@@ -191,8 +191,8 @@ def process_command(command):
             turn_params["amount_to_turn"] = args["amount_to_turn"]
             turn_params["direction"] = args["direction"]
             func_response = turn_robot_camera(turn_params)             
-            if func_response is None:
-                result["status"] = "Could not turn robot camera."
+            if "error" in func_response:
+                result["status"] = func_response["error"]
                 return result
             turn_params["current_angle"] = func_response["current_angle"]
             result = { "action": "resubmit" }
@@ -202,6 +202,9 @@ def process_command(command):
     if "text" in response:
         if "json" in response["text"][:8]:
             result = process_bounding_box(response["text"], result)
+        else:
+            result["status"] = response["text"]
+            result["action"] = None
     # If we have captured an image from the robot camera, include it in the result
     if unity.current_image:
         result["image"] = process_image(unity.current_image)
@@ -211,8 +214,7 @@ def process_bounding_box(response, result):
     """
     Process the bounding box returned from the LLM.
     Strip off the first 8 characters (the "json" prefix) and parse the JSON string.
-    The coordinate system is 1000x1000, so convert it to 512x512 (the size of captured images).
-    Sometimes the LLM returns the bounding box in the "bounding_box" field, sometimes in the "box_2d" field.
+    The coordinate system is 1000x1000, so convert it to the size of captured images..
     Args:
         response: The response from the LLM containing the bounding box information.
         result: The result dictionary to update with the bounding box information.
@@ -233,23 +235,17 @@ def process_bounding_box(response, result):
         if response_dict:
             first_entry = response_dict[0]
             object_name = first_entry['label']           
-            if "bounding_box" in first_entry:
-                gemini_bbox = first_entry['bounding_box']
-            elif "box_2d" in first_entry:
-                gemini_bbox = first_entry['box_2d']
-            elif "box_box" in first_entry:
-                gemini_bbox = first_entry['box_box']
-            elif "bbox" in first_entry:
+            if "bbox" in first_entry:
                 gemini_bbox = first_entry['bbox']
             else:
                 return { "status": "No objects found", "action": "resubmit"}
             # The LLM returns the bounding box ymin, xmin, ymax, xmax in a 1000x1000 coordinate system
-            # convert it xmin, ymin, width, heigth in a 512x512 coordinate system
-            bbox[0] = gemini_bbox[1]  # xmin
-            bbox[1] = gemini_bbox[0]  # ymin   
-            bbox[3] = gemini_bbox[2] - gemini_bbox[0]  # ymax - ymin
-            bbox[2] = gemini_bbox[3] - gemini_bbox[1]  # xmax - xmin
-            bbox = [int((coord * 512) / 1000) for coord in bbox]
+            # convert it xmin, ymin, width, heigth in the coordinate system of the image
+            gemini_bbox = [int((coord * unity.image_size) / 1000) for coord in gemini_bbox]
+            bbox[0] = gemini_bbox[1]
+            bbox[1] = gemini_bbox[0]
+            bbox[2] = gemini_bbox[3] - gemini_bbox[1]
+            bbox[3] = gemini_bbox[2] - gemini_bbox[0]
             result["bbox"] = bbox
             result["object_name"] = object_name
             result["status"] = f"Found object: {object_name} {bbox}"
