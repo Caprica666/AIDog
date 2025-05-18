@@ -61,8 +61,9 @@ class GeminiClient:
             text: The text response from the model.   
         """
         self.contents = [ types.Content(role = "user", parts = [ types.Part(text = prompt) ]) ]
+        input = [ self.contents[0] ]
         image_part = types.Part.from_bytes(data=image, mime_type="image/png")
-        self.contents.append(types.Content(role="user", parts = [image_part]))
+        input.append(types.Content(role="user", parts = [image_part]))
         tools = self.convert_functions_to_gemini_tools(function_list)
         result = { }
         try:
@@ -74,7 +75,7 @@ class GeminiClient:
                 )
             response = self.client.models.generate_content(
                 model=self.model_name,
-                contents=self.contents,
+                contents=input,
                 config=self.config
             )
         except Exception as e:

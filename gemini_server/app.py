@@ -25,28 +25,29 @@
 
 import base64
 import json
-import flask
 import io
 import os
 from gemini_connection import GeminiClient
+from openai_connection import OpenAIClient
 from unity_connection import UnityConnection
 from flask import Flask, render_template, request
 import logging
 
-
 UNITY_APP_URL = "http://localhost:5000"
 UNITY_CONNECT_PORT = 5001
-USE_GEMINI = True  # Set to False to disable Gemini usage
-USE_PNG_FILE = False  # Set to True to use a PNG file instead of bas64 image data
+AI_PLATFORM = "openai"  # Set to "openai" to use OpenAI instead of Gemini
 INDEX_HTML = "index.html"
-INDEX_HTML_PNG = "index_png.html"
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger("UserInterface")
 logger.setLevel(logging.DEBUG)
 
-if USE_GEMINI:
-    gemini = GeminiClient(logger, "gemini-2.0-flash")
+if AI_PLATFORM == "gemini":
+    aihelper = GeminiClient(logger, "gemini-2.0-flash")
+elif AI_PLATFORM == "openai":
+    aihelper = OpenAIClient(logger, "gpt-4o-mini")
+else:
+    raise ValueError("AI_PLATFORM must be either 'gemini' or 'openai'.")
 app = Flask(__name__)
 static_dir = os.path.join(app.root_path, 'static')
 unity = UnityConnection(app, UNITY_APP_URL, logger)
@@ -169,7 +170,7 @@ def process_command(command):
     # Use the LLM to find the object in the image
     # Provide the LLM with a function to turn the robot camera
     result = { "action": None }
-    response = gemini.call_with_functions(command, unity.current_image, [turn_robot_camera_function])
+    response = aihelper.call_with_functions(command, unity.current_image, [turn_robot_camera_function])
     logger.debug("LLM response: ", response)
     if "status" in response and "ERROR" in response["status"]:
         result["status"] = response["status"]
@@ -197,7 +198,7 @@ def process_command(command):
             turn_params["current_angle"] = func_response["current_angle"]
             result = { "action": "resubmit" }
             # if the function provided a result, call Gemini with the function result
-            response = gemini.call_with_function_response(function_call, func_response, unity.current_image)
+            response = aihelper.call_with_function_response(function_call, func_response, unity.current_image)
     # If the response contains a bounding box, include it in the result
     if "text" in response:
         if "json" in response["text"][:8]:
