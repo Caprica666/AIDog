@@ -11,8 +11,9 @@ class UnityConnection:
         self.unity_app_url = unity_app_url
         self.app.add_url_rule('/bounds_to_unity', 'bounds_to_unity', self.bounds_to_unity, methods=['POST'])
         self.app.add_url_rule('/ping', 'ping', self.ping, methods=['GET'])
-        self.current_image = self.image_from_unity()
         self.image_size = 256
+        self.current_image = self.image_from_unity()
+
 
     def ping(self):
         """A simple ping endpoint to check server status."""
@@ -28,14 +29,10 @@ class UnityConnection:
 
         if response.status_code == 200:
             image_data = response.content  # Extract binary data from the response
-            if response.headers.get('Content-Type') == 'image/png':
-                return image_data
-            elif response.headers.get('Content-Type') == 'application/octet-stream':
-                # Convert the binary data to a numpy array               
-                raw_pixels = io.BytesIO(image_data).getvalue()
-                # Convert raw pixel data to a numpy 2D array
-                image_array = np.frombuffer(raw_pixels, dtype=np.uint8).reshape((self.image_size, self.image_size, 3))
-                return image_array
+            if (response.headers.get('Content-Type') == 'image/png' or
+                response.headers.get('Content-Type') == 'application/octet-stream'):
+                self.current_image = io.BytesIO(image_data)
+                return self.current_image
         else:
             return None
         
@@ -72,7 +69,6 @@ class UnityConnection:
                     return json_response
                 image = self.image_from_unity()
                 if image is not None:
-                    self.current_image = image
                     self.logger.debug("Successfully turned robot and captured image")
             else:
                 json_response["error"] = "Failed to turn robot or capture image"

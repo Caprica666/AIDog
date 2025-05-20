@@ -17,28 +17,6 @@ class GeminiClient:
         self.logger = logger
         self.client = genai.Client(api_key = self.GEMINI_API_KEY)
         self.model_name = model_name # @param ["gemini-1.5-flash-latest","gemini-2.0-flash-lite","gemini-2.0-flash","gemini-2.5-flash-preview-04-17","gemini-2.5-pro-exp-03-25"] {"allow-input":true}
-        self.initial_prompt = """
-            You are controlling a robot that has a camera. You can see the world through the robot's camera.
-            You will be asked to find objects the robot sees and return their bounding boxes.
-            You will be given a prompt that describes the object to find.
-            If the object is found in the image provided, return its name and bounding box.
-            If the object is not found in the image, call the turn_robot_camera function with the following arguments:
-                - amount_to_turn: The number of degrees to turn the camera (make the value 30 degrees).
-                - direction: The direction to turn the camera (make the value "counterclockwise").
-            This function will return a JSON response with:
-            - image: new image of what the robot sees after it turns.
-            - current_angle: current amount the robot has turned in degrees with respect to start_angle
-            - at_start_angle: True if turning the robot brings it back to the starting angle, false to turn further.
-                              If True, indicate that the object is not found and do not turn the robot camera further.
-            Rules:
-            1. Return bounding boxes as a JSON array with the following format:
-                - label: The name of the object.
-                - bbox: The bounding box coordinates in the format [ymin, xmin, ymax, xmax].
-            2. Never return masks or code fencing.
-            3. Limit to 5 objects.
-            4. If an object is present multiple times, name them according to their unique characteristic (colors, size, position, unique characteristics, etc..).
-
-        """
         self.safety_settings = [
             types.SafetySetting(
                 category="HARM_CATEGORY_DANGEROUS_CONTENT",
@@ -46,13 +24,17 @@ class GeminiClient:
             ),
         ]
         
-    def call_with_functions(self, prompt, image, function_list):
+    def set_initial_prompt(self, prompt):
+        self.initial_prompt = prompt
+        
+    def call_with_functions(self, prompt, function_list, function_call, function_response):
         """
         Call the Gemini API with a prompt and an image, and return the response.
         Args:
             prompt: The text prompt from the user.
-            image: The image data as a PNG encoded byte array.
             function_list: A list of functions to be used in the API call.
+            function_call: The function that Gemini indicated should be called (or None)
+            function_response: The response from the function call (or None)
         Returns:
             A dictionary containing the function call, arguments, and text response.
             function_call: The function call made by the model.
@@ -61,9 +43,13 @@ class GeminiClient:
             text: The text response from the model.   
         """
         self.contents = [ types.Content(role = "user", parts = [ types.Part(text = prompt) ]) ]
-        input = [ self.contents[0] ]
-        image_part = types.Part.from_bytes(data=image, mime_type="image/png")
-        input.append(types.Content(role="user", parts = [image_part]))
+        if function_call and function_response:
+            function_response_part = types.Part.from_function_response(
+                name = function_call.name,
+                response = function_response)
+            # Append function call and result of the function execution to contents
+            self.contents.append(types.Content(role="model", parts = [types.Part(function_call=function_call)])) # Append the model's function call message
+            self.contents.append(types.Content(role="user", parts = [function_response_part])) # Append the function response
         tools = self.convert_functions_to_gemini_tools(function_list)
         result = { }
         try:
@@ -75,11 +61,11 @@ class GeminiClient:
                 )
             response = self.client.models.generate_content(
                 model=self.model_name,
-                contents=input,
-                config=self.config
+                contents = self.contents,
+                config = self.config
             )
         except Exception as e:
-            self.logger.error(f"Genmini call failed: {str(e)}")
+            self.logger.error(f"Gemini call failed: {str(e)}")
             result["status"] = "ERROR: " + str(e)
             return result
         parts = response.candidates[0].content.parts
@@ -92,39 +78,6 @@ class GeminiClient:
                 text_part = part.text
                 result["text"] = text_part
         return result
-        
-    def call_with_function_response(self, function_call, function_result, image):
-        """
-        Call the Gemini API with a function call and its result, and return the response.  
-        Args:
-            function_call: The function call made by the model.
-            function_result: The result of the function call.
-            image: The image data as a PNG encoded byte array.
-            Returns:                
-                Response from the Gemini API after executing the function call.
-                This should be a list of bounding boxes and labels of the objects found
-                or a message indicating that the object was not found.
-        """
-        function_response_part = types.Part.from_function_response(
-            name = function_call.name,
-            response = function_result
-        )
-        # Append function call and result of the function execution to contents
-        self.contents.append(types.Content(role="model", parts = [types.Part(function_call=function_call)])) # Append the model's function call message
-        self.contents.append(types.Content(role="user", parts = [function_response_part])) # Append the function response
-        if image is not None:
-            image_part = types.Part.from_bytes(data=image, mime_type="image/png")
-            self.contents.append(types.Content(role="user", parts = [image_part]))
-        try:
-            final_response = self.client.models.generate_content(
-                model=self.model_name,
-                config=self.config,
-                contents=self.contents,
-            )
-            return final_response
-        except Exception as e:
-            self.logger.error(f"Genmini call failed: {str(e)}")
-            return { "text" : "ERROR: " + str(e) }
 
     def convert_function_to_gemini_tool(self, function):
         """

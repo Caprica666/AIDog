@@ -6,7 +6,10 @@ class ObjectDetector():
         self.model_name = model_name
         self.model = YOLO(self.model_name)
         if labels:
-            self.model.set_classes(labels, self.model.get_text_pe(labels))
+            self.set_classes(labels)
+        
+    def set_classes(self, labels):
+        self.model.set_classes(labels, self.model.get_text_pe(labels))
         
     def detect_objects(self, image):
         results = self.model.predict(source = image)
