@@ -1,6 +1,8 @@
 
 import numpy as np
 from PIL import Image
+import copy
+import json
 from yolo_connection import ObjectDetector
 
 
@@ -8,7 +10,7 @@ initial_prompt = """
     You are controlling a robot that has a camera. You can see the world through the robot's camera.
     You will be asked to find objects the robot sees and return their bounding boxes.
     You will be provided with two functions, one to detect objects seen by the robot and another to turn the robot's camera.
-    Call the detect_object function with the name of the object the user is looking for.
+    Call the detect_object function with the name of the object the user is looking for (call this argument "label").
     If the object is found, it will return the name of the object and its bounding box:
         label: The name of the object found
         bbox: The bounding box
@@ -82,8 +84,9 @@ class RobotController():
         self.unity = unity
         self.yolo = ObjectDetector(model_name = "yoloe-11l-seg.pt")
         self.turn_params = { "start_angle" : 360, "current_angle" : 0 }
-        self.function_call = None
+        self.function_name = None
         self.function_result = None
+        self.function_args = None
         aihelper.set_initial_prompt(initial_prompt)
         
     def process_command(self, command):
@@ -112,19 +115,24 @@ class RobotController():
         while True:
             response = self.aihelper.call_with_functions(command,
                                                     [turn_robot_camera_function, detect_object_function],
-                                                    self.function_call, self.function_result)
+                                                    self.function_name, self.function_args, self.function_result)
             self.logger.debug("LLM response: ", response)
             if "status" in response and "ERROR" in response["status"]:
                 result["status"] = response["status"]
                 return result       
-            if "function_call" in response:
-                self.function_call = response["function_call"]
-                args = response["args"]
-                print("Function to call: " + response["function_name"])
-                result = self.process_function_call(response["function_name"], args)
+            if "function_name" in response:
+                self.function_name = response["function_name"]
+                self.function_args = response["args"]
+                args = copy.deepcopy(response["args"])
+                print("Function to call: " + self.function_name)
+                result = self.process_function_call(self.function_name, args)
             else:
                 self.function_call = None
                 self.function_result = None
+                if "text" in response:
+                    if "json" in response["text"][:8]:
+                        self.process_bounding_box(response["text"], result)
+                        return result
             if result["action"] == "resubmit":
                 return result
 
@@ -157,7 +165,7 @@ class RobotController():
                 return result
             self.turn_params["amount_to_turn"] = args["amount_to_turn"]
             self.turn_params["direction"] = args["direction"]
-            self.func_result = self.turn_robot_camera(self.turn_params)     
+            self.function_result = self.turn_robot_camera(self.turn_params)     
             if "error" in self.function_result:
                 result["status"] = self.func_result["error"]
                 return result
@@ -167,10 +175,10 @@ class RobotController():
             # look for the object designated by the user
             args["image_data"] = self.unity.current_image
             self.function_result = self.detect_object(args)
-            if self.function_result != None and len(self.function_result) >= 1:
+            if self.function_result and isinstance(self.function_result, (list, tuple)) and len(self.function_result) > 0:
                 firstbox = self.function_result[0]
                 self.function_result = firstbox
-                if "label" in firstbox and "bbox" in firstbox:
+                if "label" in firstbox and "box" in firstbox:
                     result["status"] = "Object found"
                     self.function_result["status"] = "Object found"                  
             else:
@@ -184,7 +192,21 @@ class RobotController():
             result["image"] = self.unity.current_image
         return result
         
-
+    def process_bounding_box(self, text, result):
+        text = text[8:]
+        text = text[:text.rfind(']') + 1]
+        try:
+            response_dict = json.loads(text)
+            self.logger.debug("Python dict: ", response_dict)
+            if response_dict:
+                first_entry = response_dict[0]
+                result['label'] = first_entry['label']
+                result['bbox'] = first_entry['bbox']
+        except json.JSONDecodeError as e:
+            result["status"] = "Failed to parse LLM response."
+            result["action"] = None
+            self.logger.debug("Failed to parse LLM response", e.msg)
+               
     def turn_robot_camera(self, args):
         """
         Turn the robot camera a specific number of degrees.

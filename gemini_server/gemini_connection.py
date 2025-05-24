@@ -2,6 +2,7 @@ import uuid
 from google import genai
 from google.genai import types
 import os
+import json
 from typing import Optional
 
 class GeminiClient:
@@ -27,7 +28,7 @@ class GeminiClient:
     def set_initial_prompt(self, prompt):
         self.initial_prompt = prompt
         
-    def call_with_functions(self, prompt, function_list, function_call, function_response):
+    def call_with_functions(self, prompt, function_list, function_name, function_args, function_response):
         """
         Call the Gemini API with a prompt and an image, and return the response.
         Args:
@@ -41,15 +42,20 @@ class GeminiClient:
             args: The arguments passed to the function.
             function_name: The name of the function called.
             text: The text response from the model.   
-        """
-        self.contents = [ types.Content(role = "user", parts = [ types.Part(text = prompt) ]) ]
-        if function_call and function_response:
+        """       
+        if function_name and function_response:
+            function_call_part = types.Part.from_function_call(
+                name=function_name,
+                args = function_args
+            )
+            self.contents.append(types.Content(role = "model", parts = [ function_call_part ]))
             function_response_part = types.Part.from_function_response(
-                name = function_call.name,
+                name = function_name,
                 response = function_response)
-            # Append function call and result of the function execution to contents
-            self.contents.append(types.Content(role="model", parts = [types.Part(function_call=function_call)])) # Append the model's function call message
-            self.contents.append(types.Content(role="user", parts = [function_response_part])) # Append the function response
+            # Append result of the function execution to contents
+            self.contents.append(types.Content(role = "user", parts = [ function_response_part ]))
+        else:
+            self.contents = [ types.Content(role = "user", parts = [ types.Part(text = prompt) ]) ]        
         tools = self.convert_functions_to_gemini_tools(function_list)
         result = { }
         try:
@@ -60,7 +66,7 @@ class GeminiClient:
                     automatic_function_calling = types.AutomaticFunctionCallingConfig(disable = True),
                 )
             response = self.client.models.generate_content(
-                model=self.model_name,
+                model = self.model_name,
                 contents = self.contents,
                 config = self.config
             )
@@ -71,14 +77,13 @@ class GeminiClient:
         parts = response.candidates[0].content.parts
         for part in parts:
             if part.function_call:
-                result["function_call"] =  part.function_call
                 result["args"] = part.function_call.args
                 result["function_name"] = part.function_call.name
             if part.text:
                 text_part = part.text
                 result["text"] = text_part
         return result
-
+        
     def convert_function_to_gemini_tool(self, function):
         """
         Convert a function description to a Gemini Tool.

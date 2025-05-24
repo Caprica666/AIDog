@@ -24,7 +24,6 @@
 #
 
 import base64
-import json
 import numpy as np
 import os
 from PIL import Image
@@ -114,7 +113,7 @@ def on_command_received(command):
         object_name = result["label"]
         bbox = result["bbox"]
         result["status"] = f"Found object: {object_name} {bbox}"
-    if "image"  in result:
+    if "image" in result:
         result["image"] = process_image(result["image"])   
     return result 
     

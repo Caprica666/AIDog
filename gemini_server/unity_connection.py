@@ -25,7 +25,7 @@ class UnityConnection:
 
         url = f"{self.unity_app_url}/image_from_unity"
         response = httpx.get(url)
-        self.logger.debug("image_from_unity response ", response.status_code)
+        self.logger.debug(f"image_from_unity response {response.status_code}")
 
         if response.status_code == 200:
             image_data = response.content  # Extract binary data from the response

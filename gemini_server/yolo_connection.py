@@ -29,7 +29,8 @@ class ObjectDetector():
                 name = result.names[id]
                 coords = boxes.xywh[i]
                 coords = [int(c) for c in coords]  # Convert all coords to int
-                box_results.append({ "label" : name, "box": coords })
+                bbox = [ coords[0] - coords[2] / 2, coords[1] - coords[3] / 3, coords[2], coords[3]]
+                box_results.append({ "label" : name, "box": bbox })
         return box_results
 
 
