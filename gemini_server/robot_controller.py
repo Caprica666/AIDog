@@ -84,9 +84,7 @@ class RobotController():
         self.unity = unity
         self.yolo = ObjectDetector(model_name = "yoloe-11l-seg.pt")
         self.turn_params = { "start_angle" : 360, "current_angle" : 0 }
-        self.function_name = None
-        self.function_result = None
-        self.function_args = None
+        self.function_info = None
         aihelper.set_initial_prompt(initial_prompt)
         
     def process_command(self, command):
@@ -113,22 +111,22 @@ class RobotController():
         # Provide the LLM with functions to turn the robot camera and detect objects
         result = { "action": None }
         while True:
-            response = self.aihelper.call_with_functions(command,
+            response, function_info = self.aihelper.call_with_functions(command,
                                                     [turn_robot_camera_function, detect_object_function],
-                                                    self.function_name, self.function_args, self.function_result)
+                                                    self.function_info)
             self.logger.debug("LLM response: ", response)
             if "status" in response and "ERROR" in response["status"]:
                 result["status"] = response["status"]
                 return result       
-            if "function_name" in response:
-                self.function_name = response["function_name"]
-                self.function_args = response["args"]
+            if function_info:
+                self.function_info = function_info
                 args = copy.deepcopy(response["args"])
-                print("Function to call: " + self.function_name)
-                result = self.process_function_call(self.function_name, args)
+                result, image = self.process_function_call(response["function_name"], args)
+                function_info["function_output"] = copy.deepcopy(result)
+                if image:
+                    result["image"] = image
             else:
-                self.function_call = None
-                self.function_result = None
+                self.function_info = None
                 if "text" in response:
                     if "json" in response["text"][:8]:
                         self.process_bounding_box(response["text"], result)
@@ -154,7 +152,8 @@ class RobotController():
             object_name: The name of the object found in the image
             bbox: The bounding box coordinates of the object in the image   
         """
-        result = { "action": None }   
+        result = { "action": None }
+        image = None
         print("Function to call: " + function_name)
         if function_name == "turn_robot_camera":
             # capture the image from the robot camera
@@ -180,6 +179,8 @@ class RobotController():
                 self.function_result = firstbox
                 if "label" in firstbox and "box" in firstbox:
                     result["status"] = "Object found"
+                    result["label"] = firstbox["label"]
+                    result["box"] = firstbox["box"]
                     self.function_result["status"] = "Object found"                  
             else:
                 result["status"] = "Object not found"
@@ -187,10 +188,7 @@ class RobotController():
         else:
             self.function_result = None
             self.function_name = None
-        # If we have captured an image from the robot camera, include it in the result
-        if self.unity.current_image:
-            result["image"] = self.unity.current_image
-        return result
+        return result, self.unity.current_image
         
     def process_bounding_box(self, text, result):
         text = text[8:]

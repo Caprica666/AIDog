@@ -36,7 +36,7 @@ import logging
 
 UNITY_APP_URL = "http://localhost:5000"
 UNITY_CONNECT_PORT = 5001
-AI_PLATFORM = "gemini"  # Set to "openai" to use OpenAI instead of Gemini
+AI_PLATFORM = "openai"  # Accepts "openai" or "gemini"
 INDEX_HTML = "index.html"
 
 logging.basicConfig(level=logging.DEBUG)

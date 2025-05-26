@@ -1,9 +1,7 @@
-import uuid
+
 from google import genai
 from google.genai import types
 import os
-import json
-from typing import Optional
 
 class GeminiClient:
     """
@@ -28,7 +26,7 @@ class GeminiClient:
     def set_initial_prompt(self, prompt):
         self.initial_prompt = prompt
         
-    def call_with_functions(self, prompt, function_list, function_name, function_args, function_response):
+    def call_with_functions(self, prompt, function_list, function_info):
         """
         Call the Gemini API with a prompt and an image, and return the response.
         Args:
@@ -43,15 +41,15 @@ class GeminiClient:
             function_name: The name of the function called.
             text: The text response from the model.   
         """       
-        if function_name and function_response:
+        if function_info:
             function_call_part = types.Part.from_function_call(
-                name=function_name,
-                args = function_args
+                name = function_info["name"],
+                args = function_info["arguments"]
             )
             self.contents.append(types.Content(role = "model", parts = [ function_call_part ]))
             function_response_part = types.Part.from_function_response(
-                name = function_name,
-                response = function_response)
+                name = function_info["name"],
+                response = function_info["function_output"])
             # Append result of the function execution to contents
             self.contents.append(types.Content(role = "user", parts = [ function_response_part ]))
         else:
@@ -75,14 +73,16 @@ class GeminiClient:
             result["status"] = "ERROR: " + str(e)
             return result
         parts = response.candidates[0].content.parts
+        function_info = None
         for part in parts:
             if part.function_call:
+                function_info = { "name" : part.function_call.name, "arguments" : part.function_call.args }
                 result["args"] = part.function_call.args
                 result["function_name"] = part.function_call.name
             if part.text:
                 text_part = part.text
                 result["text"] = text_part
-        return result
+        return result, function_info
         
     def convert_function_to_gemini_tool(self, function):
         """
