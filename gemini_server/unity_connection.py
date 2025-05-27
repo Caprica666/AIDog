@@ -5,12 +5,12 @@ import io
 import numpy as np
 
 class UnityConnection:
-    def __init__(self, app, unity_app_url, logger):
-        self.app = app
+    def __init__(self, unity_app_url, logger):
+        #self.app = app
         self.logger = logger
         self.unity_app_url = unity_app_url
-        self.app.add_url_rule('/bounds_to_unity', 'bounds_to_unity', self.bounds_to_unity, methods=['POST'])
-        self.app.add_url_rule('/ping', 'ping', self.ping, methods=['GET'])
+        #self.app.add_url_rule('/bounds_to_unity', 'bounds_to_unity', self.bounds_to_unity, methods=['POST'])
+        #self.app.add_url_rule('/ping', 'ping', self.ping, methods=['GET'])
         self.image_size = 256
         self.current_image = self.image_from_unity()
 
@@ -43,12 +43,12 @@ class UnityConnection:
             A dictionary containing the following parameters:
             amount_to_turn: The number of degrees to turn the camera.
             current_angle: The current angle of the camera before the turn.
-            start_angle: The starting angle of the camera.
+            end_angle: The starting angle of the camera.
             direction: The direction to turn the camera ('left' or 'right').
 
         Returns:
             A JSON response indicating whether the camera is at the start angle after the turn.
-            at_start_angle: True if the camera is at the start angle, False otherwise.
+            at_end_angle: True if the camera is at the start angle, False otherwise.
             current_angle: The current angle of the camera after the turn.
             error: An error message if the request fails.
         """

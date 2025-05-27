@@ -4,7 +4,10 @@ from PIL import Image
 import copy
 import json
 from yolo_connection import ObjectDetector
+from unity_connection import UnityConnection
 
+UNITY_APP_URL = "http://localhost:5000"
+UNITY_CONNECT_PORT = 5001
 
 initial_prompt = """
     You are controlling a robot that has a camera. You can see the world through the robot's camera.
@@ -19,8 +22,8 @@ initial_prompt = """
     If the object is not found, call the turn_robot_camera function with the following arguments:
     - amount_to_turn: The number of degrees to turn the camera (use 30 degrees).
     - direction: The direction to turn the camera (use 'counterclockwise').
-    It will provide a new current angle for the robot and set at_start_angle to True if turning the robot brings it back to the starting angle.
-    If at_start_angle is True, indicate that the object is not found and do not turn the robot camera further.
+    It will provide a new current angle for the robot and set at_end_angle to True if turning the robot brings it to the ending angle.
+    If at_end_angle is True, indicate that the object is not found and do not turn the robot camera further.
     Return bounding boxes as a JSON array with the following format:
     - label: The name of the object. "
     - bbox: The bounding box coordinates in the format [ymin, xmin, ymax, xmax].
@@ -40,9 +43,9 @@ turn_robot_camera_function = {
                 "type": "integer",
                 "description": "The number of degrees to turn the camera."
             },
-            "start_angle": {
+            "end_angle": {
                 "type": "integer",
-                "description": "The starting angle of the camera before a series of turns."
+                "description": "The ending angle beyond which the camera should not turn."
             },
             "current_angle": {
                 "type": "integer",
@@ -54,7 +57,7 @@ turn_robot_camera_function = {
                 "description": "The direction to turn the camera."
             }
         },
-        "required": [ "amount_to_turn", "direction"]
+        "required": [ "amount_to_turn", "direction", "current_angle" ]
     }
 } 
 
@@ -78,14 +81,16 @@ detect_object_function = {
 } 
 
 class RobotController():
-    def __init__(self, logger, aihelper, unity):
+    def __init__(self, logger, aihelper):
         self.logger = logger
         self.aihelper = aihelper       
-        self.unity = unity
+        self.unity = UnityConnection(UNITY_APP_URL, logger)
         self.yolo = ObjectDetector(model_name = "yoloe-11l-seg.pt")
-        self.turn_params = { "start_angle" : 360, "current_angle" : 0 }
+        self.turn_params = { "end_angle" : 360, "current_angle" : 0 }
         self.function_info = None
         aihelper.set_initial_prompt(initial_prompt)
+        aihelper.set_tools([turn_robot_camera_function, detect_object_function])
+        aihelper.start_client()
         
     def process_command(self, command):
         """
@@ -111,9 +116,7 @@ class RobotController():
         # Provide the LLM with functions to turn the robot camera and detect objects
         result = { "action": None }
         while True:
-            response, function_info = self.aihelper.call_with_functions(command,
-                                                    [turn_robot_camera_function, detect_object_function],
-                                                    self.function_info)
+            response, function_info = self.aihelper.call_llm(command, self.function_info)
             self.logger.debug("LLM response: ", response)
             if "status" in response and "ERROR" in response["status"]:
                 result["status"] = response["status"]
@@ -153,7 +156,6 @@ class RobotController():
             bbox: The bounding box coordinates of the object in the image   
         """
         result = { "action": None }
-        image = None
         print("Function to call: " + function_name)
         if function_name == "turn_robot_camera":
             # capture the image from the robot camera
@@ -192,7 +194,8 @@ class RobotController():
         
     def process_bounding_box(self, text, result):
         text = text[8:]
-        text = text[:text.rfind(']') + 1]
+        if text[0] == '[':
+            text = text[:text.rfind(']') + 1]
         try:
             response_dict = json.loads(text)
             self.logger.debug("Python dict: ", response_dict)
@@ -211,12 +214,12 @@ class RobotController():
         
         Args: dictionary with the following arguments:
             turn_angle: The number of degrees to turn the camera.
-            start_angle: The starting angle of the camera before a series of turns.
+            end_angle: The ending angle beyond which the camera should not turn.
             current_angle" The current angle of the camera before this turn.
             direction: The direction to turn the camera ("clockwise" or "counterclockwise").
             
         Returns:
-            at_start_angle: True if camera has been turned to the start angle, False otherwise.
+            at_end_angle: True if camera has been turned to the end angle, False otherwise.
             current_angle: The current angle of the camera after the turn.
             image: The image from the robot camera after the turn.
             error: error message if an error occurs

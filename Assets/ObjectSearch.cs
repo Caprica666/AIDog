@@ -140,7 +140,7 @@ public class ObjectSearch : MonoBehaviour
                 TurnResult result = new TurnResult
                 {
                     current_angle = curangle,
-                    at_start_angle = (curangle == data.start_angle)
+                    at_end_angle = (curangle == data.end_angle)
                 };
                 response.StatusCode = (int) HttpStatusCode.OK;
                 response.ContentType = "application/json";
@@ -278,7 +278,7 @@ public class ObjectSearch : MonoBehaviour
     [System.Serializable]
     public class TurnPayload
     {
-        public int start_angle;
+        public int end_angle;
         public int current_angle;
         public int amount_to_turn;
         public string direction;
@@ -287,7 +287,7 @@ public class ObjectSearch : MonoBehaviour
     [System.Serializable]
     public class TurnResult
     {
-        public bool at_start_angle;
+        public bool at_end_angle;
         public int current_angle;
     }
 

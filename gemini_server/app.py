@@ -24,21 +24,16 @@
 #
 
 import base64
-import numpy as np
 import os
-from PIL import Image
 from gemini_connection import GeminiClient
 from openai_connection import OpenAIClient
-from unity_connection import UnityConnection
 from robot_controller import RobotController
 from flask import Flask, render_template, request
 import logging
 
-UNITY_APP_URL = "http://localhost:5000"
-UNITY_CONNECT_PORT = 5001
-AI_PLATFORM = "openai"  # Accepts "openai" or "gemini"
+AI_PLATFORM = "gemini"  # Accepts "openai" or "gemini"
 INDEX_HTML = "index.html"
-
+UNITY_CONNECT_PORT = 5001
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger("UserInterface")
 logger.setLevel(logging.DEBUG)
@@ -51,8 +46,7 @@ else:
     raise ValueError("AI_PLATFORM must be either 'gemini' or 'openai'.")
 app = Flask(__name__)
 static_dir = os.path.join(app.root_path, 'static')
-unity = UnityConnection(app, UNITY_APP_URL, logger)
-robot = RobotController(logger, aihelper, unity)
+robot = RobotController(logger, aihelper)
 
 #
 # Display the startup HTML page

@@ -1,21 +1,14 @@
 
 from google import genai
 from google.genai import types
-import os
+from llm_connection import LLMClient
 
-class GeminiClient:
+class GeminiClient(LLMClient):
     """
     A class to interact with the Gemini API for object detection and bounding box generation.
     Sets up the initial prompt and safety settings for the Gemini model."""
-    def __init__(self, logger, model_name="gemini-2.5-pro-preview-05-06"):
-        self.gemini_key_var = "GEMINI_API_KEY_ANNE"
-        #self.gemini_key_var = "GEMINI_API_KEY"
-        self.GEMINI_API_KEY = os.getenv(self.gemini_key_var)
-        if (self.GEMINI_API_KEY is None):
-            raise ValueError(self.gemini_key_var + "environment variable not set.")
-        self.logger = logger
-        self.client = genai.Client(api_key = self.GEMINI_API_KEY)
-        self.model_name = model_name # @param ["gemini-1.5-flash-latest","gemini-2.0-flash-lite","gemini-2.0-flash","gemini-2.5-flash-preview-04-17","gemini-2.5-pro-exp-03-25"] {"allow-input":true}
+    def __init__(self, logger, model_name = "gemini-2.5-pro-preview-05-06"):
+        super().__init__(logger, "GEMINI_API_KEY", model_name)
         self.safety_settings = [
             types.SafetySetting(
                 category="HARM_CATEGORY_DANGEROUS_CONTENT",
@@ -24,14 +17,19 @@ class GeminiClient:
         ]
         
     def set_initial_prompt(self, prompt):
-        self.initial_prompt = prompt
+        super().set_initial_prompt(prompt)
         
-    def call_with_functions(self, prompt, function_list, function_info):
+    def start_client(self):
+        self.client = genai.Client(api_key = self.API_KEY)
+        
+    def set_tools(self, function_list):
+        super().set_tools(self.convert_functions_to_gemini_tools(function_list))
+        
+    def call_llm(self, prompt, function_info):
         """
         Call the Gemini API with a prompt and an image, and return the response.
         Args:
             prompt: The text prompt from the user.
-            function_list: A list of functions to be used in the API call.
             function_call: The function that Gemini indicated should be called (or None)
             function_response: The response from the function call (or None)
         Returns:
@@ -54,13 +52,12 @@ class GeminiClient:
             self.contents.append(types.Content(role = "user", parts = [ function_response_part ]))
         else:
             self.contents = [ types.Content(role = "user", parts = [ types.Part(text = prompt) ]) ]        
-        tools = self.convert_functions_to_gemini_tools(function_list)
         result = { }
         try:
             self.config = types.GenerateContentConfig(
                     system_instruction = self.initial_prompt,
                     safety_settings = self.safety_settings,
-                    tools = tools,
+                    tools = self.tools,
                     automatic_function_calling = types.AutomaticFunctionCallingConfig(disable = True),
                 )
             response = self.client.models.generate_content(

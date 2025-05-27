@@ -1,27 +1,32 @@
 import os
 from openai import OpenAI
+from llm_connection import LLMClient
 import json
 
-class OpenAIClient:
+class OpenAIClient(LLMClient):
     """
     A class to interact with the OpenAI API for object detection and bounding box generation.
     Mimics the GeminiClient interface for compatibility.
     """
-    def __init__(self, logger, model_name="gpt-4o-mini"):
-        self.openai_key_var = "OPENAI_API_KEY"
-        self.OPENAI_API_KEY = os.getenv(self.openai_key_var)
-        if self.OPENAI_API_KEY is None:
-            raise ValueError(self.openai_key_var + " environment variable not set.")
-        self.logger = logger
-        self.model_name = model_name
-        self.client = OpenAI(api_key = self.OPENAI_API_KEY)
-        self.initial_prompt = None
+    def __init__(self, logger, model_name):
+        super().__init__(logger, "OPENAI_API_KEY", model_name)
         self.contents = []
 
-    def set_initial_prompt(self, prompt):
-        self.initial_prompt = prompt
+    def start_client(self):
+        """
+        Start the OpenAI client.
+        This method initializes the OpenAI client with the provided API key.
+        """
+        self.client = OpenAI(api_key = self.API_KEY)
 
-    def call_with_functions(self, prompt, function_list, function_info):
+        
+    def set_initial_prompt(self, prompt):
+        super().set_initial_prompt(prompt)
+        
+    def set_tools(self, function_list):
+        super().set_tools(self.convert_functions_to_openai_tools(function_list))
+
+    def call_llm(self, prompt, function_info):
         """
         Call the OpenAI API with a prompt and optional function call/response.
         Args:
@@ -51,13 +56,12 @@ class OpenAIClient:
         else:
             messages.append({"role": "user", "content": prompt})
 
-        tools = self.convert_functions_to_openai_tools(function_list)
         result = {}
         try:
             response = self.client.responses.create(
                 model = self.model_name,
                 input = messages,
-                tools = tools
+                tools = self.tools
             )
         except Exception as e:
             self.logger.error(f"OpenAI call failed: {str(e)}")
