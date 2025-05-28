@@ -2,14 +2,17 @@ from ultralytics import YOLO
 import numpy as np
 
 class ObjectDetector():
-    def __init__(self, model_name="yolo11n.pt", labels=None):
+    def __init__(self, model_name = "yolo11n.pt", labels = None):
         self.model_name = model_name
         self.model = YOLO(self.model_name)
+        self.labels = None
         if labels:
             self.set_classes(labels)
         
     def set_classes(self, labels):
-        self.model.set_classes(labels, self.model.get_text_pe(labels))
+        if self.labels != labels:
+            self.model.set_classes(labels, self.model.get_text_pe(labels))
+            self.labels = labels
         
     def detect_objects(self, image):
         results = self.model.predict(source = image)

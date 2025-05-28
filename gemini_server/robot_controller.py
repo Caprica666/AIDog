@@ -1,13 +1,7 @@
 
-import numpy as np
-from PIL import Image
 import copy
 import json
-from yolo_connection import ObjectDetector
-from unity_connection import UnityConnection
-
-UNITY_APP_URL = "http://localhost:5000"
-UNITY_CONNECT_PORT = 5001
+from robot_functions import RobotFunctions
 
 initial_prompt = """
     You are controlling a robot that has a camera. You can see the world through the robot's camera.
@@ -16,7 +10,7 @@ initial_prompt = """
     Call the detect_object function with the name of the object the user is looking for (call this argument "label").
     If the object is found, it will return the name of the object and its bounding box:
         label: The name of the object found
-        bbox: The bounding box
+        box: The bounding box
         status: 'Object found' or 'Object not found'
     Return this as your response.
     If the object is not found, call the turn_robot_camera function with the following arguments:
@@ -28,68 +22,16 @@ initial_prompt = """
     - label: The name of the object. "
     - bbox: The bounding box coordinates in the format [ymin, xmin, ymax, xmax].
     """
-            
-#
-# Description of the function to turn the robot camera
-# This function is called by the LLM when it needs to turn the robot camera.
-#
-turn_robot_camera_function = {
-    "name": "turn_robot_camera",
-    "description": "Turn the robot camera the specific number of degrees.",
-    "parameters": {
-        "type": "object",
-        "properties": {
-            "amount_to_turn": {
-                "type": "integer",
-                "description": "The number of degrees to turn the camera."
-            },
-            "end_angle": {
-                "type": "integer",
-                "description": "The ending angle beyond which the camera should not turn."
-            },
-            "current_angle": {
-                "type": "integer",
-                "description": "The current angle of the camera before turning."
-            },
-            "direction": {
-                "type": "string",
-                "enum": ["clockwise", "counterclockwise"],
-                "description": "The direction to turn the camera."
-            }
-        },
-        "required": [ "amount_to_turn", "direction", "current_angle" ]
-    }
-} 
-
-#
-# Description of the function to detect an object the robot sees
-# This function is called by the LLM when it needs to find the bounding box of an object.
-#
-detect_object_function = {
-    "name": "detect_object",
-    "description": "Look for a designated object visible to the robot's camera.",
-    "parameters": {
-        "type": "object",
-        "properties": {
-            "label": {
-                "type": "string",
-                "description": "The name of the object to look for."
-            },
-        },
-        "required": [ "label" ]
-    }
-} 
 
 class RobotController():
     def __init__(self, logger, aihelper):
         self.logger = logger
-        self.aihelper = aihelper       
-        self.unity = UnityConnection(UNITY_APP_URL, logger)
-        self.yolo = ObjectDetector(model_name = "yoloe-11l-seg.pt")
+        self.aihelper = aihelper
+        self.robot = RobotFunctions(logger)      
         self.turn_params = { "end_angle" : 360, "current_angle" : 0 }
         self.function_info = None
         aihelper.set_initial_prompt(initial_prompt)
-        aihelper.set_tools([turn_robot_camera_function, detect_object_function])
+        aihelper.set_tools(self.robot.get_function_list())
         aihelper.start_client()
         
     def process_command(self, command):
@@ -124,10 +66,15 @@ class RobotController():
             if function_info:
                 self.function_info = function_info
                 args = copy.deepcopy(response["args"])
-                result, image = self.process_function_call(response["function_name"], args)
-                function_info["function_output"] = copy.deepcopy(result)
-                if image:
+                result = self.process_function_call(response["function_name"], args)
+                if "error" in result["status"]:
+                    return result
+                if "image" in result:
+                    image = result.pop("image")
+                    function_info["function_output"] = copy.deepcopy(result)
                     result["image"] = image
+                else:
+                    function_info["function_output"] = result
             else:
                 self.function_info = None
                 if "text" in response:
@@ -166,31 +113,18 @@ class RobotController():
                 return result
             self.turn_params["amount_to_turn"] = args["amount_to_turn"]
             self.turn_params["direction"] = args["direction"]
-            self.function_result = self.turn_robot_camera(self.turn_params)     
-            if "error" in self.function_result:
-                result["status"] = self.func_result["error"]
+            function_result = self.robot.turn_robot_camera(self.turn_params)
+            result.update(function_result)     
+            if "error" in result["status"]:
                 return result
-            self.turn_params["current_angle"] = self.function_result["current_angle"]
-            result = { "action": "resubmit" }
+            self.turn_params["current_angle"] = result["current_angle"]
+            result["action"] = "resubmit"
         elif function_name == "detect_object":
-            # look for the object designated by the user
-            args["image_data"] = self.unity.current_image
-            self.function_result = self.detect_object(args)
-            if self.function_result and isinstance(self.function_result, (list, tuple)) and len(self.function_result) > 0:
-                firstbox = self.function_result[0]
-                self.function_result = firstbox
-                if "label" in firstbox and "box" in firstbox:
-                    result["status"] = "Object found"
-                    result["label"] = firstbox["label"]
-                    result["box"] = firstbox["box"]
-                    self.function_result["status"] = "Object found"                  
-            else:
-                result["status"] = "Object not found"
-                self.function_result = { "status": "Object not found" }
+            function_result = self.robot.detect_object(args)
+            result.update(function_result)
         else:
-            self.function_result = None
-            self.function_name = None
-        return result, self.unity.current_image
+            result["status"] = "error: no function called for " + function_name
+        return result
         
     def process_bounding_box(self, text, result):
         text = text[8:]
@@ -202,54 +136,14 @@ class RobotController():
             if response_dict:
                 first_entry = response_dict[0]
                 result['label'] = first_entry['label']
-                result['bbox'] = first_entry['bbox']
+                if "bbox" in first_entry:
+                    result["bbox"] = first_entry['bbox']
+                elif "box" in first_entry:
+                    result["bbox"] = first_entry["box"]
         except json.JSONDecodeError as e:
             result["status"] = "Failed to parse LLM response."
             result["action"] = None
             self.logger.debug("Failed to parse LLM response", e.msg)
-               
-    def turn_robot_camera(self, args):
-        """
-        Turn the robot camera a specific number of degrees.
-        
-        Args: dictionary with the following arguments:
-            turn_angle: The number of degrees to turn the camera.
-            end_angle: The ending angle beyond which the camera should not turn.
-            current_angle" The current angle of the camera before this turn.
-            direction: The direction to turn the camera ("clockwise" or "counterclockwise").
-            
-        Returns:
-            at_end_angle: True if camera has been turned to the end angle, False otherwise.
-            current_angle: The current angle of the camera after the turn.
-            image: The image from the robot camera after the turn.
-            error: error message if an error occurs
-        """
-        return self.unity.turn_robot_camera(args)
-
-    def detect_object(self, args):
-        """
-        Determine if the robot can currently see a designated and return its bounding box.
-        
-        Args:
-            label: name of the object to find
-            image_data: bytes of the image to look in
-            
-        Returns: dictionary with object name and bounds (if the object is found)
-            label: name of object found
-            bbox: bounding box of object in format [ x, y, w, h ]
-            error: error message if an error occurs  
-        """
-        if "label" in args and "image_data" in args:
-            self.yolo.set_classes([ args["label"] ])
-            image_data = args["image_data"]
-            image = Image.open(image_data)
-            image_array = np.array(image)
-            if image_array.shape[-1] == 3:
-                image_array = image_array[..., ::-1]
-            response = self.yolo.detect_objects(image_array)
-        else:
-            response = { "error" : "Missing arguments for detect_object"}
-        return response
     
 
 

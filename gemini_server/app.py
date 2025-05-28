@@ -32,12 +32,11 @@ from flask import Flask, render_template, request
 import logging
 
 AI_PLATFORM = "gemini"  # Accepts "openai" or "gemini"
-INDEX_HTML = "index.html"
 UNITY_CONNECT_PORT = 5001
-logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger("UserInterface")
+logging.basicConfig(level = logging.DEBUG)
+logger = logging.getLogger("RobotClient")
 logger.setLevel(logging.DEBUG)
-            
+          
 if AI_PLATFORM == "gemini":
     aihelper = GeminiClient(logger, model_name = "gemini-2.0-flash")
 elif AI_PLATFORM == "openai":
@@ -55,12 +54,11 @@ robot = RobotController(logger, aihelper)
 def show_startup_page():
     """Display the startup page and handle form submissions."""
     logger.debug("displaying index.html")
-    return render_template(INDEX_HTML)
+    return render_template("index.html")
 
 #
 # Called when a command is submitted to the robot.
 # 
-
 @app.route("/submit_command", methods=["POST"])
 def submit_command():
     """
@@ -80,7 +78,7 @@ def submit_command():
     if command:
         result = on_command_received(command)
     else:
-        result = { "status": "No command provided.", "action": None }
+        result = { "status": "error: No command provided.", "action": None }
     return result
 
 #
@@ -108,28 +106,14 @@ def on_command_received(command):
         bbox = result["bbox"]
         result["status"] = f"Found object: {object_name} {bbox}"
     if "image" in result:
-        result["image"] = process_image(result["image"])   
+        result["image"] = "data:image/png;base64," +  result["image"]   
     return result 
-    
-def process_image(image_png_data):
-    """
-    Convert the image data to a format suitable for display in HTML.
-    
-    Args:
-        image_png_data: The image data as a PNG encoded byte array
-    Returns:
-        A base64 encoded string representing the image data.
-    """
-    # Convert the image to a format suitable for display in HTML
-    image_data = image_png_data.getvalue()
-    imageb64 = base64.b64encode(image_data).decode('utf-8')
-    return "data:image/png;base64," + imageb64
        
 def main():
     logger.debug("running web server")
     if not os.path.exists(static_dir):
         os.makedirs(static_dir)
-    app.run(port=UNITY_CONNECT_PORT, use_reloader=False, debug=True)
+    app.run(port = UNITY_CONNECT_PORT, use_reloader = False, debug = True)
     
 if __name__ == "__main__":
     main()
