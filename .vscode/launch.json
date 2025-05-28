@@ -5,6 +5,33 @@
             "name": "Attach to Unity",
             "type": "vstuc",
             "request": "attach"
+        },
+        {
+            "name": "Python: Flask",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "flask",
+            "env": {
+                "FLASK_APP": "app.py",
+                "FLASK_ENV": "development"
+            },
+            "args": [
+                "run",
+                //"--no-debugger",
+                //"--no-reload",
+                "--port=5001"
+            ],
+            "jinja": true
+        },
+        {
+            "name": "Python: Pytest",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "pytest",
+            "args": [
+                "gemini_server/test_robot_mcp_server.py"
+            ],
+            "justMyCode": false
         }
     ]
 }

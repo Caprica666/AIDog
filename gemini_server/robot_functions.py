@@ -7,6 +7,8 @@ from yolo_connection import ObjectDetector
 from unity_connection import UnityConnection
 import logging
 
+logging.basicConfig(level = logging.DEBUG)
+
 UNITY_APP_URL = "http://localhost:5000"
 
 #
@@ -61,9 +63,10 @@ detect_object_function = {
 }
 
 class RobotFunctions():
-    def __init__(self, logger):
+    def __init__(self):
         self.function_list = [ turn_robot_camera_function, detect_object_function ]
-        self.logger = logger
+        self.logger = logging.getLogger("RobotFunctions")
+        self.logger.setLevel(logging.DEBUG)
         self.unity = UnityConnection(UNITY_APP_URL, self.logger)
         self.yolo = ObjectDetector(model_name = "yoloe-11l-seg.pt")
       

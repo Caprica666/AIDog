@@ -27,7 +27,7 @@ class RobotController():
     def __init__(self, logger, aihelper):
         self.logger = logger
         self.aihelper = aihelper
-        self.robot = RobotFunctions(logger)      
+        self.robot = RobotFunctions()      
         self.turn_params = { "end_angle" : 360, "current_angle" : 0 }
         self.function_info = None
         aihelper.set_initial_prompt(initial_prompt)

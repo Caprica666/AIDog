@@ -8,13 +8,13 @@ UNITY_APP_URL = "http://localhost:5000"
 mcp = FastMCP("Robot MCP Server")
 robot = RobotFunctions()
 
-@mcp.tool()
+@mcp.tool(description = "Turn the robot camera a specific number of degrees.")
 def turn_robot_camera(amount_to_turn, current_angle, direction):
     """
     Turn the robot camera a specific number of degrees.
     
     Args:
-        turn_angle: The number of degrees to turn the camera.
+        amount_to_turn: The number of degrees to turn the camera.
         current_angle: The current angle of the camera before this turn.
         direction: The direction to turn the camera ("clockwise" or "counterclockwise").
         
@@ -22,23 +22,23 @@ def turn_robot_camera(amount_to_turn, current_angle, direction):
         at_end_angle: True if camera has been turned to the stendart angle, False otherwise.
         current_angle: The current angle of the camera after the turn.
         image: The image from the robot camera after the turn.
-        error: error message if an error occurs
-    """
+        status: status or error message
+    """  
     if amount_to_turn == None or direction == None:
         return jsonify({ "status" : "error: Missing required arguments for turn_robot_camera function." })
     result = robot.turn_robot_camera( {
-                                       "amount_to_turn": amount_to_turn,
-                                       "current_angle": current_angle,
-                                       "direction": direction,
-                                       "end_angle": 360 })  
+                                    "amount_to_turn": amount_to_turn,
+                                    "current_angle": current_angle,
+                                    "direction": direction,
+                                    "end_angle": 360 })  
     if "error" not in result["status"]:
         result["action"] = "resubmit"
     return jsonify(result)
 
-@mcp.tool()
+@mcp.tool(description = "Determine if the robot can currently see an object and returns its bounding box.")
 def detect_object(label):
     """
-    Determine if the robot can currently see a designated and return its bounding box.
+    Determine if the robot can currently see an object and returns its bounding box.
     
     Args:
         label: name of the object to find
@@ -53,6 +53,12 @@ def detect_object(label):
         return jsonify({ "status": "error: Missing label for detect_objects function." })
     result = robot.detect_objects({ "label" : label})
     return jsonify(result)
+
+#async def main():
+#    await mcp.run_async(transport="stdio")
+
+#if __name__ == "__main__":
+#    asyncio.run(main())
 
 if __name__ == "__main__":
     mcp.run(transport = "stdio")
