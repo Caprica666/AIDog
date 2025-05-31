@@ -5,6 +5,7 @@ from mcp.server.fastmcp import FastMCP
 
 from yolo_connection import ObjectDetector
 from unity_connection import UnityConnection
+from mock_unity_connection import MockUnityConnection
 import logging
 
 logging.basicConfig(level = logging.DEBUG)
@@ -63,11 +64,14 @@ detect_object_function = {
 }
 
 class RobotFunctions():
-    def __init__(self):
+    def __init__(self, mock_unity_dir = None):
         self.function_list = [ turn_robot_camera_function, detect_object_function ]
         self.logger = logging.getLogger("RobotFunctions")
         self.logger.setLevel(logging.DEBUG)
-        self.unity = UnityConnection(UNITY_APP_URL, self.logger)
+        if mock_unity_dir:
+            self.unity = MockUnityConnection(UNITY_APP_URL, self.logger, mock_unity_dir)
+        else:
+            self.unity = UnityConnection(UNITY_APP_URL, self.logger)
         self.yolo = ObjectDetector(model_name = "yoloe-11l-seg.pt")
       
     def get_function_list(self):
@@ -92,10 +96,8 @@ class RobotFunctions():
             return { "status": "error: Missing required arguments for turn_robot_camera function." }
         args["end_angle"] = 360
         result = self.unity.turn_robot_camera(args)  
-        if "error" in result:
-            result["status"] = result["error"]
+        if "error" in result["status"]:
             return result
-        result["status"] = "robot turned"
         result["action"] = "resubmit"
         image_data = self.unity.image_from_unity()
         result["image"] = self.process_image(image_data)

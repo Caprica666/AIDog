@@ -47,38 +47,40 @@ class UnityConnection:
             direction: The direction to turn the camera ('left' or 'right').
 
         Returns:
-            A JSON response indicating whether the camera is at the start angle after the turn.
-            at_end_angle: True if the camera is at the start angle, False otherwise.
+            A dictionary with the following entries:
+            at_end_angle: True if the camera is past the end angle, False otherwise.
             current_angle: The current angle of the camera after the turn.
-            error: An error message if the request fails.
+            status: status indicating success or an error message if the request fails.
         """
+        if "amount_to_turn" not in params or "current_angle" not in params or "direction" not in params or "end_angle" not in params:
+            return { "status": "error: turn_robot_camera is missing required parameters" }
+        if params["direction"] != "clockwise" and params["direction"] != "counterclockwise":
+            return { "status": "error: turn_robot_camera direction not valid - " + params["direction"] }
         url = f"{self.unity_app_url}/turn_robot_camera"
         json_params = json.dumps(params)  # Convert params to a JSON string
-        json_response = { }
+        response_dict = { }
         try:
             response = httpx.post(url, data=json_params, headers={"Content-Type": "application/json"})
             if response.status_code == 200:
                 if response.headers.get('Content-Type') == 'application/json':
-                    json_response = response.json()
+                    response_dict = response.json()
+                    response_dict["status"] = "robot successfully turned"
                 elif response.headers.get('Content-Type') == 'text/plain':
                     # If the response is plain text, parse it as JSON
-                    json_response = json.loads(response.text)
+                    response_dict = json.loads(response.text)
+                    response_dict["status"] = "robot successfully turned"
                 else:
-                    json_response["error"] = "Unexpected content type"
+                    response_dict["status"] = "error: turn_robot_camera Unexpected content type"
                     self.logger.debug("Unexpected content type")
-                    return json_response
-                image = self.image_from_unity()
-                if image is not None:
-                    self.logger.debug("Successfully turned robot and captured image")
+                    return response_dict
             else:
-                json_response["error"] = "Failed to turn robot or capture image"
+                response_dict["status"] = "error: turn_robot_camera Failed to turn robot"
                 self.logger.debug("Failed to turn robot or capture image")
         except httpx.RequestError as e:
             self.logger.error(f"Request failed: {e}")
-            json_response["error"] = str(e)
-        return json_response
+            response_dict["status"] = "error: turn_robot_camera " + str(e)
+        return response_dict
 
-    # Post the bounds for an object to Unity
     def bounds_to_unity(self, object_name, bbox):
         """
         Send the bounding box of an object to Unity.
@@ -91,6 +93,6 @@ class UnityConnection:
         response = httpx.post(url, json=payload)
 
         if response.status_code == 200:
-            return jsonify({"message": "Bounding box sent successfully"}), 200
+            return {"status": "Bounding box sent successfully"}
         else:
-            return jsonify({"error": "Failed to send bounding box to Unity"}), response.status_code
+            return {"status": "Failed to send bounding box to Unity"}

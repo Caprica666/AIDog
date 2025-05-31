@@ -32,6 +32,7 @@ from flask import Flask, render_template, request
 import logging
 
 AI_PLATFORM = "gemini"  # Accepts "openai" or "gemini"
+MOCK_UNITY = True
 UNITY_CONNECT_PORT = 5001
 logging.basicConfig(level = logging.DEBUG)
 logger = logging.getLogger("RobotClient")
@@ -45,7 +46,12 @@ else:
     raise ValueError("AI_PLATFORM must be either 'gemini' or 'openai'.")
 app = Flask(__name__)
 static_dir = os.path.join(app.root_path, 'static')
-robot = RobotController(logger, aihelper)
+
+if MOCK_UNITY:
+    mock_unity_dir = os.path.join(static_dir, "mock_unity")
+else:
+    mock_unity_dir = None
+robot = RobotController(logger, aihelper, mock_unity_dir)
 
 #
 # Display the startup HTML page
