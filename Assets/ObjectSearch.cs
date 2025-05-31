@@ -196,7 +196,7 @@ public class ObjectSearch : MonoBehaviour
             response.ContentLength64 = imageBytes.Length;
             response.OutputStream.Write(imageBytes, 0, imageBytes.Length);
             response.OutputStream.Write(imageBytes, 0, imageBytes.Length);
-            File.WriteAllBytes("capturedimage.png", imageBytes);
+//            File.WriteAllBytes("capturedimage.png", imageBytes);
             imageBytes = null;
         }
         else
@@ -205,7 +205,7 @@ public class ObjectSearch : MonoBehaviour
             byte[] buffer = Encoding.UTF8.GetBytes("Failed to capture image");
             response.ContentLength64 = buffer.Length;
             response.OutputStream.Write(buffer, 0, buffer.Length);
-            File.WriteAllBytes("capturedimage.png", imageBytes);
+//            File.WriteAllBytes("capturedimage.png", imageBytes);
         }
     }
 

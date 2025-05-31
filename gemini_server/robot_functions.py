@@ -1,9 +1,9 @@
 import numpy as np
 import base64
 from PIL import Image
-from mcp.server.fastmcp import FastMCP
 
 from yolo_connection import ObjectDetector
+from mock_yolo_connection import MockObjectDetector
 from unity_connection import UnityConnection
 from mock_unity_connection import MockUnityConnection
 import logging
@@ -64,15 +64,19 @@ detect_object_function = {
 }
 
 class RobotFunctions():
-    def __init__(self, mock_unity_dir = None):
+    def __init__(self, mock_unity_dir = None, mock_yolo = False):
         self.function_list = [ turn_robot_camera_function, detect_object_function ]
         self.logger = logging.getLogger("RobotFunctions")
         self.logger.setLevel(logging.DEBUG)
         if mock_unity_dir:
             self.unity = MockUnityConnection(UNITY_APP_URL, self.logger, mock_unity_dir)
+            if mock_yolo:
+                self.yolo = MockObjectDetector(model_name = "yoloe-11l-seg.pt")
+            else:
+                self.yolo = ObjectDetector(model_name = "yoloe-11l-seg.pt")
         else:
             self.unity = UnityConnection(UNITY_APP_URL, self.logger)
-        self.yolo = ObjectDetector(model_name = "yoloe-11l-seg.pt")
+            self.yolo = ObjectDetector(model_name = "yoloe-11l-seg.pt")
       
     def get_function_list(self):
         return self.function_list

@@ -33,6 +33,7 @@ import logging
 
 AI_PLATFORM = "gemini"  # Accepts "openai" or "gemini"
 MOCK_UNITY = True
+MOCK_YOLO = True
 UNITY_CONNECT_PORT = 5001
 logging.basicConfig(level = logging.DEBUG)
 logger = logging.getLogger("RobotClient")
@@ -51,7 +52,7 @@ if MOCK_UNITY:
     mock_unity_dir = os.path.join(static_dir, "mock_unity")
 else:
     mock_unity_dir = None
-robot = RobotController(logger, aihelper, mock_unity_dir)
+robot = RobotController(logger, aihelper, mock_unity_dir, MOCK_YOLO)
 
 #
 # Display the startup HTML page

@@ -24,10 +24,10 @@ initial_prompt = """
     """
 
 class RobotController():
-    def __init__(self, logger, aihelper, mock_unity_dir = None):
+    def __init__(self, logger, aihelper, mock_unity_dir = None, mock_yolo = False):
         self.logger = logger
         self.aihelper = aihelper
-        self.robot = RobotFunctions(mock_unity_dir)      
+        self.robot = RobotFunctions(mock_unity_dir, mock_yolo)      
         self.turn_params = { "end_angle" : 360, "current_angle" : 0 }
         self.function_info = None
         aihelper.set_initial_prompt(initial_prompt)
