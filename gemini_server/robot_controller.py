@@ -108,8 +108,8 @@ class RobotController():
             # capture the image from the robot camera
             # and pass the image data to the LLM as a PNG encoded byte array
             if "amount_to_turn" not in args or "direction" not in args:
-                result["status"] = "Missing required arguments for turn_robot_camera function."
-                self.logger.debug("Missing required arguments for turn_robot_camera function.")
+                result["status"] = "error: Missing required arguments for turn_robot_camera function."
+                self.logger.debug("error: Missing required arguments for turn_robot_camera function.")
                 return result
             self.turn_params["amount_to_turn"] = args["amount_to_turn"]
             self.turn_params["direction"] = args["direction"]
@@ -132,18 +132,18 @@ class RobotController():
             text = text[:text.rfind(']') + 1]
         try:
             response_dict = json.loads(text)
-            self.logger.debug("Python dict: ", response_dict)
             if response_dict:
-                first_entry = response_dict[0]
-                result['label'] = first_entry['label']
-                if "bbox" in first_entry:
-                    result["bbox"] = first_entry['bbox']
-                elif "box" in first_entry:
-                    result["bbox"] = first_entry["box"]
+                if isinstance(response_dict, (list, tuple)) and len(response_dict) > 0:
+                    response_dict = response_dict[0]
+                result['label'] = response_dict['label']
+                if "bbox" in response_dict:
+                    result["bbox"] = response_dict['bbox']
+                elif "box" in response_dict:
+                    result["bbox"] = response_dict["box"]
         except json.JSONDecodeError as e:
             result["status"] = "Failed to parse LLM response."
             result["action"] = None
-            self.logger.debug("Failed to parse LLM response", e.msg)
+            self.logger.debug("Failed to parse LLM response " + str(e.msg))
     
 
 

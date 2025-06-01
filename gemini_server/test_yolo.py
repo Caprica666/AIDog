@@ -10,8 +10,8 @@ detect_this = ["dog", "box", "striped ball", "ball", "red toy", "blue toy", "bro
 test_files = ["dog_toys_in_LR.jpg", "capturedimage.png", "ball_on_floor.jpg",
               "saber_blue_toy2.jpg", "saber_brown_toy.jpg", "saber_with_ball.jpg" ]
 
-yolo_model = "yolo12n.pt"
-#yolo_model = "yoloe-11l-seg.pt"
+#yolo_model = "yolo12n.pt"
+yolo_model = "yoloe-11l-seg.pt"
 
 test_results_yolo12n = [
     [ # dog_toys_in_LR.jpg
@@ -22,7 +22,7 @@ test_results_yolo12n = [
     ],
     [ # capturedimage.png
         {'label': 'sports ball', 'box': [203, 141, 38, 33]},
-        {'label': 'umbrella', 'box': [76, 145, 56, 51]}
+        {'label': 'suitcase', 'box': [152.5, 16.0, 103, 96]}
     ],
     [ # ball_on_floor.jpg
         {'label': 'sports ball', 'box': [88, 42, 43, 43]}
@@ -60,8 +60,10 @@ test_results_yoloe = [
         {'label': 'blue toy', 'box': [617, 265, 43, 73]}
     ],
     [ # capturedimage.png
-        {'label': 'ball', 'box': [203, 141, 37, 32]},
-        {'label': 'box', 'box': [77, 145, 54, 50]}
+        {'label': 'green toy', 'box': [44.0, 70.33333333333333, 82, 26]},
+        {'label': 'red toy', 'box': [183.5, 157.66666666666666, 37, 34]},
+        {'label': 'box', 'box': [46.5, 155.66666666666666, 55, 55]},
+        {'label': 'blue toy', 'box': [46.5, 155.66666666666666, 55, 55]}
     ],
     [ # ball_on_floor.jpg
         {'label': 'striped ball', 'box': [88, 41, 42, 42]}
@@ -97,8 +99,8 @@ class TestYOLOObjectDetection(unittest.TestCase):
             labels = detect_this
         else:
             cls.test_results = test_results_yolo12n
+            labels = None
         cls.do_compare = do_compare
-        labels = None
         cls.yolo = Yolo.ObjectDetector(model_name = cls.yolo_model, labels=labels)
 
     def detect_objects_in_file(self, filename):
