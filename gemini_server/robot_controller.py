@@ -16,7 +16,10 @@ initial_prompt = """
     If the object is not found, call the turn_robot_camera function with the following arguments:
     - amount_to_turn: The number of degrees to turn the camera (use 30 degrees).
     - direction: The direction to turn the camera (use 'counterclockwise').
+    - current_angle: The current amount the camera has turned. Start at 0 for the first iteration
+      and pass the result of the previous turn_robot_camera to the next iteration.
     It will provide a new current angle for the robot and set at_end_angle to True if turning the robot brings it to the ending angle.
+    You must remember the current angle and pass it as an argument to the next turn_robot_camera call.
     If at_end_angle is True, indicate that the object is not found and do not turn the robot camera further.
     Return bounding boxes as a JSON array with the following format:
     - label: The name of the object. "
@@ -28,7 +31,6 @@ class RobotController():
         self.logger = logger
         self.aihelper = aihelper
         self.robot = RobotFunctions(mock_unity_dir, mock_yolo)      
-        self.turn_params = { "end_angle" : 360, "current_angle" : 0 }
         self.function_info = None
         aihelper.set_initial_prompt(initial_prompt)
         aihelper.set_tools(self.robot.get_function_list())
@@ -105,13 +107,10 @@ class RobotController():
         result = { "action": None }
         print("Function to call: " + function_name)
         if function_name == "turn_robot_camera":
-            self.turn_params["amount_to_turn"] = args["amount_to_turn"]
-            self.turn_params["direction"] = args["direction"]
-            function_result = self.robot.turn_robot_camera(self.turn_params)
+            function_result = self.robot.turn_robot_camera(args)
             result.update(function_result)     
             if "error" in result["status"]:
                 return result
-            self.turn_params["current_angle"] = result["current_angle"]
             result["action"] = "resubmit"
         elif function_name == "detect_object":
             function_result = self.robot.detect_object(args)
@@ -124,6 +123,8 @@ class RobotController():
         text = text[8:]
         if text[0] == '[':
             text = text[:text.rfind(']') + 1]
+        elif text[0] == '{':
+            text = text[:text.rfind('}') + 1]
         try:
             response_dict = json.loads(text)
             if response_dict:

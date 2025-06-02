@@ -2,7 +2,7 @@ from ultralytics import YOLO
 import numpy as np
 
 class ObjectDetector():
-    def __init__(self, model_name = "yolo11n.pt", labels = None):
+    def __init__(self, model_name = "yoloe-11l-seg.pt", labels = None):
         self.model_name = model_name
         self.model = YOLO(self.model_name)
         self.labels = None

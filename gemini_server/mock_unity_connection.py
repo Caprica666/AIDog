@@ -67,9 +67,13 @@ class MockUnityConnection:
             new_angle -= params["amount_to_turn"]
         else:
             return { "status": "error: turn_robot_camera direction not valid - " + params["direction"] }
-        response = { "current_angle" : params["current_angle"] + params["amount_to_turn"], "at_end_angle": False }
+        response = { "current_angle" : new_angle, "at_end_angle": False }
         response["status"] = "robot successfully turned"
-        if response["current_angle"] >= params["end_angle"]:
+        if params["end_angle"] > 0 and new_angle >= params["end_angle"]:
+            response["at_end_angle"] = True
+            response["current_angle"] = params["end_angle"]
+            response["status"] = "robot at end angle"
+        elif params["end_angle"] <= 0 and new_angle <= params["end_angle"]:
             response["at_end_angle"] = True
             response["current_angle"] = params["end_angle"]
             response["status"] = "robot at end angle"

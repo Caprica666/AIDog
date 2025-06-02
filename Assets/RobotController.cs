@@ -21,10 +21,13 @@ public class RobotController : MonoBehaviour
         RobotEvents.OnSetRobotYAngle -= SetRobotYAngle;
     }
 
-    // Method to handle the rotation
     private void TurnRobotAboutYAxis(int angle)
     {
-        transform.Rotate(0, angle, 0, Space.World);
+        var newY = transform.eulerAngles.y + angle;
+        transform.eulerAngles = new Vector3(
+            transform.eulerAngles.x,
+            newY,
+            transform.eulerAngles.z);
         //StartCoroutine(RotateRobot(angle, speed));
     }
 

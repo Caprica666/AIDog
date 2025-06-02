@@ -227,11 +227,18 @@ public class ObjectSearch : MonoBehaviour
                     return;
                 }
                 // determine if end angle has been reached
-                if (curangle >= data.end_angle)
+                if ((data.end_angle > 0) && (curangle >= data.end_angle))
                 {
                     curangle = data.end_angle;
                     atend = true;
                     data.amount_to_turn = data.end_angle - data.current_angle;
+                    msg = "robot at end angle";
+                }
+                else if ((data.end_angle <= 0) && (curangle <= data.end_angle))
+                {
+                    curangle = data.end_angle;
+                    atend = true;
+                    data.amount_to_turn = data.current_angle - data.end_angle;
                     msg = "robot at end angle";
                 }
                 TurnResult result = new TurnResult
@@ -293,7 +300,7 @@ public class ObjectSearch : MonoBehaviour
             response.ContentLength64 = imageBytes.Length;
             response.OutputStream.Write(imageBytes, 0, imageBytes.Length);
             response.OutputStream.Write(imageBytes, 0, imageBytes.Length);
-//            File.WriteAllBytes("capturedimage.png", imageBytes);
+            //File.WriteAllBytes("capturedimage.png", imageBytes);
             imageBytes = null;
         }
         else
@@ -302,7 +309,7 @@ public class ObjectSearch : MonoBehaviour
             byte[] buffer = Encoding.UTF8.GetBytes("Failed to capture image");
             response.ContentLength64 = buffer.Length;
             response.OutputStream.Write(buffer, 0, buffer.Length);
-//            File.WriteAllBytes("capturedimage.png", imageBytes);
+            //File.WriteAllBytes("capturedimage.png", imageBytes);
         }
     }
 

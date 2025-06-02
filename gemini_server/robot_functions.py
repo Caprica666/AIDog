@@ -63,6 +63,7 @@ detect_object_function = {
     }
 }
 
+YOLO_MODEL = "yoloe-11l-seg.pt"
 class RobotFunctions():
     def __init__(self, mock_unity_dir = None, mock_yolo = False):
         self.function_list = [ turn_robot_camera_function, detect_object_function ]
@@ -71,12 +72,12 @@ class RobotFunctions():
         if mock_unity_dir:
             self.unity = MockUnityConnection(UNITY_APP_URL, self.logger, mock_unity_dir)
             if mock_yolo:
-                self.yolo = MockObjectDetector(model_name = "yoloe-11l-seg.pt")
+                self.yolo = MockObjectDetector(model_name = YOLO_MODEL)
             else:
-                self.yolo = ObjectDetector(model_name = "yoloe-11l-seg.pt")
+                self.yolo = ObjectDetector(model_name = YOLO_MODEL)
         else:
             self.unity = UnityConnection(UNITY_APP_URL, self.logger)
-            self.yolo = ObjectDetector(model_name = "yoloe-11l-seg.pt")
+            self.yolo = ObjectDetector(model_name = YOLO_MODEL)
       
     def get_function_list(self):
         return self.function_list
