@@ -1,7 +1,8 @@
 ﻿using UnityEngine;
 public static class RobotEvents
 {
-    public static System.Action<int> OnTurnRobot; // angle in degreees
+    public static System.Action<int> OnTurnRobot; // angle in degrees
+    public static System.Action<int> OnSetRobotYAngle; // angle in degrees
 }
 
 public class RobotController : MonoBehaviour
@@ -10,12 +11,14 @@ public class RobotController : MonoBehaviour
     private void OnEnable()
     {
         RobotEvents.OnTurnRobot += TurnRobotAboutYAxis;
+        RobotEvents.OnSetRobotYAngle += SetRobotYAngle;
     }
 
     // Unsubscribe from the OnTurnRobot event
     private void OnDisable()
     {
         RobotEvents.OnTurnRobot -= TurnRobotAboutYAxis;
+        RobotEvents.OnSetRobotYAngle -= SetRobotYAngle;
     }
 
     // Method to handle the rotation
@@ -23,6 +26,15 @@ public class RobotController : MonoBehaviour
     {
         transform.Rotate(0, angle, 0, Space.World);
         //StartCoroutine(RotateRobot(angle, speed));
+    }
+
+    private void SetRobotYAngle(int newY)
+    {
+        transform.eulerAngles = new Vector3(
+            transform.eulerAngles.x,
+            newY,
+            transform.eulerAngles.z
+        );
     }
 
     // Coroutine to smoothly rotate the model

@@ -30,7 +30,7 @@
             "module": "pytest",
             "args": [
  //               "gemini_server/test_yolo.py", "gemini_server/test_robot_functions.py", "gemini_server/test_robot_controller.py"
-                "gemini_server/test_yolo.py"
+                "gemini_server/test_robot_functions.py"
             ],
             "justMyCode": false
         }

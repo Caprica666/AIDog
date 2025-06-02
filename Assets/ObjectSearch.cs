@@ -46,9 +46,15 @@ public class ObjectSearch : MonoBehaviour
         {
             degrees = -degrees; // Invert the angle for counter-clockwise
         }
-        RobotEvents.OnTurnRobot?.Invoke(degrees); // Turn 90 degre
+        RobotEvents.OnTurnRobot?.Invoke(degrees);
     }
 
+    public void OnSetRobotYAngle(int degrees)
+    {
+        // Handle the turn robot event here
+        Debug.Log($"Set robot Y angle to {degrees}");
+        RobotEvents.OnSetRobotYAngle?.Invoke(degrees); 
+    }
 
     private void StartHttpListener()
     {
@@ -107,6 +113,10 @@ public class ObjectSearch : MonoBehaviour
         {
             TurnRobotCamera(context);
         }
+        else if (request.HttpMethod == "POST" && request.Url.AbsolutePath == "/set_robot_yangle")
+        {
+            SetRobotYAngle(context);
+        }
         if (request.HttpMethod == "GET" && request.Url.AbsolutePath == "/ping")
         {
             Ping(context);
@@ -121,6 +131,56 @@ public class ObjectSearch : MonoBehaviour
         response.OutputStream.Close();
     }
 
+    private void OutputMessage(HttpListenerResponse response, string errmsg, HttpStatusCode code)
+    {
+        byte[] buffer;
+
+        response.ContentType = "application/json";
+        response.StatusCode = (int) code;
+        var response_data = "{ \"status\" : \"" + errmsg + "\" }";
+        buffer = Encoding.UTF8.GetBytes(response_data);
+        response.ContentLength64 = buffer.Length;
+        response.OutputStream.Write(buffer, 0, buffer.Length);
+    }
+
+    private void SetRobotYAngle(HttpListenerContext context)
+    {
+        var request = context.Request;
+        var response = context.Response;
+
+        using (var reader = new StreamReader(request.InputStream, request.ContentEncoding))
+        {
+            string payload = reader.ReadToEnd();
+            AnglePayload data;
+
+            try
+            {
+                data = JsonConvert.DeserializeObject<AnglePayload>(payload);
+            }
+            catch (Exception ex)
+            {
+                OutputMessage(response, "error: " + ex.Message, HttpStatusCode.BadRequest);
+                return;
+            }
+
+            if (data != null)
+            {
+                Debug.Log($"Set robot Y angle '{data.current_angle}'");
+                response.StatusCode = (int) HttpStatusCode.OK;
+
+                mainThreadDispatcher.Enqueue(() =>
+                {
+                    OnSetRobotYAngle(data.current_angle);
+                });
+                OutputMessage(response, "robot angle successfully set", HttpStatusCode.OK);
+            }
+            else
+            {
+                OutputMessage(response, "error: set_robot_yangle is missing required parameters", HttpStatusCode.BadRequest);
+            }
+        }
+    }
+
     private void TurnRobotCamera(HttpListenerContext context)
     {
         var request = context.Request;
@@ -129,33 +189,70 @@ public class ObjectSearch : MonoBehaviour
         using (var reader = new StreamReader(request.InputStream, request.ContentEncoding))
         {
             string payload = reader.ReadToEnd();
-            TurnPayload data = JsonConvert.DeserializeObject<TurnPayload>(payload);
             byte[] buffer;
+            TurnPayload data;
 
+            try
+            {
+                data = JsonConvert.DeserializeObject<TurnPayload>(payload);
+            }
+            catch (Exception ex)
+            {
+                OutputMessage(response, "error: " + ex.Message, HttpStatusCode.BadRequest);
+                return;
+            }
 
             if (data != null)
             {
-                int curangle = data.current_angle + data.amount_to_turn;
+                int curangle;
+                bool atend = false;
+                string msg = "robot successfully turned";
                 Debug.Log($"Turn robot camera '{data.amount_to_turn}': [{string.Join(", ", data.direction)}]");
+                response.StatusCode = (int)HttpStatusCode.OK;
+                response.ContentType = "application/json";
+                // clockwise - add amount to turn to current angle
+                if (data.direction == "clockwise")
+                {
+                    curangle = data.current_angle + data.amount_to_turn;
+                }
+                // counterclockwise - subtract amount to turn from current angle
+                else if (data.direction == "counterclockwise")
+                {
+                    curangle = data.current_angle - data.amount_to_turn;
+                }
+                // return error code if direction is not clockwise or counterclockwise
+                else
+                {
+                    OutputMessage(response, "error: turn_robot_camera direction not valid " + data.direction, HttpStatusCode.BadRequest);
+                    return;
+                }
+                // determine if end angle has been reached
+                if (curangle >= data.end_angle)
+                {
+                    curangle = data.end_angle;
+                    atend = true;
+                    data.amount_to_turn = data.end_angle - data.current_angle;
+                    msg = "robot at end angle";
+                }
                 TurnResult result = new TurnResult
                 {
                     current_angle = curangle,
-                    at_end_angle = (curangle == data.end_angle)
+                    at_end_angle = atend,
+                    status = msg
                 };
-                response.StatusCode = (int) HttpStatusCode.OK;
-                response.ContentType = "application/json";
+
                 mainThreadDispatcher.Enqueue(() =>
                 {
                     OnTurnRobot(data.amount_to_turn, data.direction);
                 });
-                
+
                 var response_data = JsonConvert.SerializeObject(result);
                 buffer = Encoding.UTF8.GetBytes(response_data);
             }
             else
             {
-                response.StatusCode = (int) HttpStatusCode.BadRequest;
-                buffer = Encoding.UTF8.GetBytes("Invalid payload");
+                OutputMessage(response, "error: turn_robot_camera is missing required parameters", HttpStatusCode.BadRequest);
+                return;
             }
             response.ContentLength64 = buffer.Length;
             response.OutputStream.Write(buffer, 0, buffer.Length);
@@ -276,6 +373,13 @@ public class ObjectSearch : MonoBehaviour
         public float[] bounding_box;
     }
 
+
+    [System.Serializable]
+    public class AnglePayload
+    {
+        public int current_angle;
+    }
+
     [System.Serializable]
     public class TurnPayload
     {
@@ -290,6 +394,7 @@ public class ObjectSearch : MonoBehaviour
     {
         public bool at_end_angle;
         public int current_angle;
+        public string status;
     }
 
 }

@@ -95,10 +95,11 @@ class RobotFunctions():
             current_angle: The current angle of the camera after the turn.
             error: error message if an error occurs
         """
-        if "amount_to_turn" not in args or "direction" not in args:       
+        if "amount_to_turn" not in args or "direction" not in args or "current_angle" not in args:      
             self.logger.debug("Missing required arguments for turn_robot_camera function.")
             return { "status": "error: Missing required arguments for turn_robot_camera function." }
-        args["end_angle"] = 360
+        if  "end_angle" not in args: 
+            args["end_angle"] = 360
         result = self.unity.turn_robot_camera(args)  
         if "error" in result["status"]:
             return result

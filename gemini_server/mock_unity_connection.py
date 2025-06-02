@@ -29,7 +29,19 @@ class MockUnityConnection:
             image_png_data = image_png_file.read()
         self.current_image = io.BytesIO(image_png_data)
         return self.current_image
-        
+
+
+    def set_robot_yangle(self, params):
+        """Set the robot camera's angle about the Y axis to the specified number of degrees.
+         Args:
+            A dictionary containing the following parameter:
+            current_angle: The current Y angle of the camera in degrees.
+        """
+        if "current_angle" not in params or "direction" not in params:
+            return { "status": "error: set_robot_yangle is missing required parameter" }
+        self.frame_count = 0
+        return { "status": "robot angle successfully set" }
+                
     def turn_robot_camera(self, params):
         """Turn the camera in Unity by a specified number of degrees.
 
@@ -56,9 +68,11 @@ class MockUnityConnection:
         else:
             return { "status": "error: turn_robot_camera direction not valid - " + params["direction"] }
         response = { "current_angle" : params["current_angle"] + params["amount_to_turn"], "at_end_angle": False }
+        response["status"] = "robot successfully turned"
         if response["current_angle"] >= params["end_angle"]:
             response["at_end_angle"] = True
-        response["status"] = "robot successfully turned"
+            response["current_angle"] = params["end_angle"]
+            response["status"] = "robot at end angle"
         return response
 
     def bounds_to_unity(self, object_name, bbox):

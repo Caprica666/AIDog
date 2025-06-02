@@ -36,6 +36,43 @@ class UnityConnection:
         else:
             return None
         
+    def set_robot_yangle(self, params):
+        """Set the robot camera's angle about the Y axis to the specified number of degrees.
+         Args:
+            A dictionary containing the following parameter:
+            current_angle: The current Y angle of the camera in degrees.
+        """
+        if "current_angle" not in params:
+            return { "status": "error: set_robot_yangle is missing required parameter" }
+
+        url = f"{self.unity_app_url}/set_robot_yangle"
+        json_params = json.dumps(params)  # Convert params to a JSON string
+        response_dict = { }
+        try:
+            response = httpx.post(url, data=json_params, headers={"Content-Type": "application/json"})
+            if response.status_code == 200:
+                if response.headers.get('Content-Type') == 'application/json':
+                    response_dict = response.json()
+                elif response.headers.get('Content-Type') == 'text/plain':
+                    # If the response is plain text, parse it as JSON
+                    response_dict = json.loads(response.text)
+                else:
+                    response_dict["status"] = "error: set_robot_yangle Unexpected content type"
+                    self.logger.debug("Unexpected content type")
+                    return response_dict
+            else:
+                if response.headers.get('Content-Type') == 'application/json':
+                    response_dict = response.json()
+                    if "status" not in response_dict:
+                        response_dict["status"] = "error: set_robot_yangle Failed to set angle"
+                else:
+                    response_dict["status"] = "error: set_robot_yangle Failed to set angle"
+                self.logger.error(response_dict["status"])               
+        except httpx.RequestError as e:
+            self.logger.error(f"Request failed: {e}")
+            response_dict["status"] = "error: set_robot_yangle " + str(e)
+        return response_dict
+        
     def turn_robot_camera(self, params):
         """Turn the camera in Unity by a specified number of degrees.
 
@@ -64,18 +101,21 @@ class UnityConnection:
             if response.status_code == 200:
                 if response.headers.get('Content-Type') == 'application/json':
                     response_dict = response.json()
-                    response_dict["status"] = "robot successfully turned"
                 elif response.headers.get('Content-Type') == 'text/plain':
                     # If the response is plain text, parse it as JSON
                     response_dict = json.loads(response.text)
-                    response_dict["status"] = "robot successfully turned"
                 else:
                     response_dict["status"] = "error: turn_robot_camera Unexpected content type"
                     self.logger.debug("Unexpected content type")
                     return response_dict
             else:
-                response_dict["status"] = "error: turn_robot_camera Failed to turn robot"
-                self.logger.debug("Failed to turn robot or capture image")
+                if response.headers.get('Content-Type') == 'application/json':
+                    response_dict = response.json()
+                    if "status" not in response_dict:
+                        response_dict["status"] = "error: turn_robot_camera Failed to turn robot"
+                else:
+                    response_dict["status"] = "error: turn_robot_camera Failed to turn robot"
+                self.logger.error(response_dict["status"])               
         except httpx.RequestError as e:
             self.logger.error(f"Request failed: {e}")
             response_dict["status"] = "error: turn_robot_camera " + str(e)

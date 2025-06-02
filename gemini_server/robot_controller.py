@@ -105,12 +105,6 @@ class RobotController():
         result = { "action": None }
         print("Function to call: " + function_name)
         if function_name == "turn_robot_camera":
-            # capture the image from the robot camera
-            # and pass the image data to the LLM as a PNG encoded byte array
-            if "amount_to_turn" not in args or "direction" not in args:
-                result["status"] = "error: Missing required arguments for turn_robot_camera function."
-                self.logger.debug("error: Missing required arguments for turn_robot_camera function.")
-                return result
             self.turn_params["amount_to_turn"] = args["amount_to_turn"]
             self.turn_params["direction"] = args["direction"]
             function_result = self.robot.turn_robot_camera(self.turn_params)

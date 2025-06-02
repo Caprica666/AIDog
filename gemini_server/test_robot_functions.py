@@ -6,7 +6,11 @@ MOCK_UNITY_DIR = os.path.join(os.path.dirname(__file__), 'static', 'mock_unity')
 
 @pytest.fixture
 def robot_funcs():
-    return RobotFunctions(mock_unity_dir = MOCK_UNITY_DIR, mock_yolo = True)
+    #robot = RobotFunctions(mock_unity_dir = MOCK_UNITY_DIR, mock_yolo = True)
+    robot = RobotFunctions()
+    robot.unity.set_robot_yangle({ "current_angle" : 60 })
+    robot.yolo.frame_count = 0
+    return robot            
 
 def test_get_function_list(robot_funcs):
     funcs = robot_funcs.get_function_list()
@@ -15,12 +19,36 @@ def test_get_function_list(robot_funcs):
     assert any(f['name'] == 'detect_object' for f in funcs)
 
 def test_turn_robot_camera_valid(robot_funcs):
-    args = {"amount_to_turn": 30, "current_angle": 0, "direction": "clockwise"}
+    args = {
+        "amount_to_turn": 30,
+        "current_angle": 0,
+        "direction": "clockwise",
+        "end_angle": 180
+        }
     result = robot_funcs.turn_robot_camera(args)
     assert "current_angle" in result
+    assert "at_end_angle" in result
+    assert result["current_angle"] == 30
+    assert result["at_end_angle"] == False
     assert "action" in result
     assert "image" in result
     assert result["status"] == "robot successfully turned"
+    
+def test_turn_robot_camera_end_angle(robot_funcs):
+    args = {
+        "amount_to_turn": 30,
+        "current_angle": 60,
+        "direction": "clockwise",
+        "end_angle": 70
+        }
+    result = robot_funcs.turn_robot_camera(args)
+    assert "current_angle" in result
+    assert "at_end_angle" in result
+    assert result["current_angle"] == 70
+    assert result["at_end_angle"] == True
+    assert "action" in result
+    assert "image" in result
+    assert result["status"] == "robot at end angle"
 
 def test_turn_robot_camera_missing_args(robot_funcs):
     args = {"amount_to_turn": 30}
