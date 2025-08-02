@@ -41,11 +41,8 @@ public class ObjectSearch : MonoBehaviour
     public void OnTurnRobot(int degrees, string direction)
     {
         // Handle the turn robot event here
-        Debug.Log($"Turn robot '{degrees}' degrees {direction}");
-        if (direction != "clockwise")
-        {
-            degrees = -degrees; // Invert the angle for counter-clockwise
-        }
+        Debug.Log($"Turn robot '{degrees}'");
+
         RobotEvents.OnTurnRobot?.Invoke(degrees);
     }
 
@@ -101,19 +98,19 @@ public class ObjectSearch : MonoBehaviour
         var request = context.Request;
         var response = context.Response;
 
-        if (request.HttpMethod == "GET" && request.Url.AbsolutePath == "/image_from_unity")
+        if (request.HttpMethod == "GET" && request.Url.AbsolutePath == "/aidog_get_camera_image")
         {
             ImageFromUnity(context);
         }
-        else if (request.HttpMethod == "POST" && request.Url.AbsolutePath == "/bounds_to_unity")
+        else if (request.HttpMethod == "POST" && request.Url.AbsolutePath == "/aidog_set_bounds")
         {
             BoundsToUnity(context);
         }
-        else if (request.HttpMethod == "POST" && request.Url.AbsolutePath == "/turn_robot_camera")
+        else if (request.HttpMethod == "POST" && request.Url.AbsolutePath == "/aidog_rotatezaxis_relative")
         {
             TurnRobotCamera(context);
         }
-        else if (request.HttpMethod == "POST" && request.Url.AbsolutePath == "/set_robot_yangle")
+        else if (request.HttpMethod == "POST" && request.Url.AbsolutePath == "/aidog_rotatezaxis_absolute")
         {
             SetRobotYAngle(context);
         }
@@ -205,52 +202,37 @@ public class ObjectSearch : MonoBehaviour
             if (data != null)
             {
                 int curangle;
-                bool atend = false;
+                bool reached_end_angle = false;
                 string msg = "robot successfully turned";
-                Debug.Log($"Turn robot camera '{data.amount_to_turn}': [{string.Join(", ", data.direction)}]");
+                Debug.Log($"Turn robot camera '{data.turn_angle}': [{string.Join(", ", data.direction)}]");
                 response.StatusCode = (int)HttpStatusCode.OK;
                 response.ContentType = "application/json";
-                // clockwise - add amount to turn to current angle
-                if (data.direction == "clockwise")
-                {
-                    curangle = data.current_angle + data.amount_to_turn;
-                }
-                // counterclockwise - subtract amount to turn from current angle
-                else if (data.direction == "counterclockwise")
-                {
-                    curangle = data.current_angle - data.amount_to_turn;
-                }
-                // return error code if direction is not clockwise or counterclockwise
-                else
-                {
-                    OutputMessage(response, "error: turn_robot_camera direction not valid " + data.direction, HttpStatusCode.BadRequest);
-                    return;
-                }
+                
                 // determine if end angle has been reached
                 if ((data.end_angle > 0) && (curangle >= data.end_angle))
                 {
                     curangle = data.end_angle;
-                    atend = true;
+                    reached_end_angle = true;
                     data.amount_to_turn = data.end_angle - data.current_angle;
                     msg = "robot at end angle";
                 }
                 else if ((data.end_angle <= 0) && (curangle <= data.end_angle))
                 {
                     curangle = data.end_angle;
-                    atend = true;
+                    reached_end_angle = true;
                     data.amount_to_turn = data.current_angle - data.end_angle;
                     msg = "robot at end angle";
                 }
                 TurnResult result = new TurnResult
                 {
                     current_angle = curangle,
-                    at_end_angle = atend,
-                    status = msg
+                    at_end = reached_end_angle,
+                    message = msg
                 };
 
                 mainThreadDispatcher.Enqueue(() =>
                 {
-                    OnTurnRobot(data.amount_to_turn, data.direction);
+                    OnTurnRobot(data.turn_angle, data.angular_velocity);
                 });
 
                 var response_data = JsonConvert.SerializeObject(result);
@@ -390,18 +372,21 @@ public class ObjectSearch : MonoBehaviour
     [System.Serializable]
     public class TurnPayload
     {
-        public int end_angle;
-        public int current_angle;
-        public int amount_to_turn;
+        public float turn_angle;
+        public float current_angle;
+        public float angular_velocity;
+        public float end_angle;
         public string direction;
     }
 
     [System.Serializable]
     public class TurnResult
     {
-        public bool at_end_angle;
-        public int current_angle;
-        public string status;
+        public bool at_end;
+        public bool success;
+        public float last_angle;
+        public float elapsed_time;
+        public string message;
     }
 
 }

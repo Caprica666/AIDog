@@ -11,19 +11,21 @@ initial_prompt = """
     If the object is found, it will return the name of the object and its bounding box:
         label: The name of the object found
         box: The bounding box
-        status: 'Object found' or 'Object not found'
+        message: 'Object found' or 'Object not found'
+        success: True if the object was found, False otherwise
     Return this as your response.
     If the object is not found, call the turn_robot_camera function with the following arguments:
-    - amount_to_turn: The number of degrees to turn the camera (use 30 degrees).
+    - turn_angle: The number of degrees to turn the camera (use 30 degrees).
     - direction: The direction to turn the camera (use 'counterclockwise').
     - current_angle: The current amount the camera has turned. Start at 0 for the first iteration
       and pass the result of the previous turn_robot_camera to the next iteration.
     It will provide a new current angle for the robot and set at_end_angle to True if turning the robot brings it to the ending angle.
     You must remember the current angle and pass it as an argument to the next turn_robot_camera call.
-    If at_end_angle is True, indicate that the object is not found and do not turn the robot camera further.
+    If at_end is True, indicate that the object is not found and do not turn the robot camera further.
     Return bounding boxes as a JSON array with the following format:
     - label: The name of the object. "
     - bbox: The bounding box coordinates in the format [ymin, xmin, ymax, xmax].
+    - success: True if the object was found, False otherwise
     """
 
 class RobotController():
@@ -50,7 +52,7 @@ class RobotController():
             command: The command to the robot. 
         Returns:
             A JSON response indicating the status of the command and the bounding box coordinates.
-            status: The status of the command or an error message
+            message: The status of the command or an error message
             action: The action to take (e.g., "resubmit" if the command needs to be reprocessed)
             image: The image data as a base64 encoded string
             object_name: The name of the object found in the image
@@ -62,14 +64,14 @@ class RobotController():
         while True:
             response, function_info = self.aihelper.call_llm(command, self.function_info)
             self.logger.debug("LLM response: ", response)
-            if "status" in response and "ERROR" in response["status"]:
-                result["status"] = response["status"]
+            if "message" in response and "ERROR" in response["message"]:
+                result["message"] = response["message"]
                 return result       
             if function_info:
                 self.function_info = function_info
                 args = copy.deepcopy(response["args"])
                 result = self.process_function_call(response["function_name"], args)
-                if "error" in result["status"]:
+                if "error" in result["message"]:
                     return result
                 if "image" in result:
                     image = result.pop("image")
@@ -98,7 +100,8 @@ class RobotController():
             command: The command to the robot. 
         Returns:
             A JSON response indicating the status of the command and the bounding box coordinates.
-            status: The status of the command or an error message
+            message: The status of the command or an error message
+            success: True if the function call was successful, False otherwise
             action: The action to take (e.g., "resubmit" if the command needs to be reprocessed)
             image: The image data as a base64 encoded string
             object_name: The name of the object found in the image
@@ -109,14 +112,14 @@ class RobotController():
         if function_name == "turn_robot_camera":
             function_result = self.robot.turn_robot_camera(args)
             result.update(function_result)     
-            if "error" in result["status"]:
+            if "error" in result["message"]:
                 return result
             result["action"] = "resubmit"
         elif function_name == "detect_object":
             function_result = self.robot.detect_object(args)
             result.update(function_result)
         else:
-            result["status"] = "error: no function called for " + function_name
+            result["message"] = "error: no function called for " + function_name
         return result
         
     def process_bounding_box(self, text, result):
@@ -133,10 +136,13 @@ class RobotController():
                 result['label'] = response_dict['label']
                 if "bbox" in response_dict:
                     result["bbox"] = response_dict['bbox']
+                    result["success"] = True
                 elif "box" in response_dict:
                     result["bbox"] = response_dict["box"]
+                    result["success"] = True
         except json.JSONDecodeError as e:
-            result["status"] = "Failed to parse LLM response."
+            result["message"] = "Failed to parse LLM response."
+            result["success"] = False
             result["action"] = None
             self.logger.debug("Failed to parse LLM response " + str(e.msg))
     

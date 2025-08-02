@@ -43,7 +43,7 @@ class UnityConnection:
             current_angle: The current Y angle of the camera in degrees.
         """
         if "current_angle" not in params:
-            return { "status": "error: set_robot_yangle is missing required parameter" }
+            return { "message": "error: set_robot_yangle is missing required parameter", "success": False }
 
         url = f"{self.unity_app_url}/set_robot_yangle"
         json_params = json.dumps(params)  # Convert params to a JSON string
@@ -57,20 +57,22 @@ class UnityConnection:
                     # If the response is plain text, parse it as JSON
                     response_dict = json.loads(response.text)
                 else:
-                    response_dict["status"] = "error: set_robot_yangle Unexpected content type"
+                    response_dict["message"] = "error: set_robot_yangle Unexpected content type"
                     self.logger.debug("Unexpected content type")
                     return response_dict
             else:
                 if response.headers.get('Content-Type') == 'application/json':
                     response_dict = response.json()
-                    if "status" not in response_dict:
-                        response_dict["status"] = "error: set_robot_yangle Failed to set angle"
+                    if "message" not in response_dict:
+                        response_dict["message"] = "error: set_robot_yangle Failed to set angle"
                 else:
-                    response_dict["status"] = "error: set_robot_yangle Failed to set angle"
-                self.logger.error(response_dict["status"])               
+                    response_dict["message"] = "error: set_robot_yangle Failed to set angle"
+                response_dict["success"] = False
+                self.logger.error(response_dict["message"])               
         except httpx.RequestError as e:
             self.logger.error(f"Request failed: {e}")
-            response_dict["status"] = "error: set_robot_yangle " + str(e)
+            response_dict["message"] = "error: set_robot_yangle " + str(e)
+            response_dict["success"] = False
         return response_dict
         
     def turn_robot_camera(self, params):

@@ -22,12 +22,12 @@ turn_robot_camera_function = {
     "parameters": {
         "type": "object",
         "properties": {
-            "amount_to_turn": {
-                "type": "integer",
+            "turn_angle": {
+                "type": "float",
                 "description": "The number of degrees to turn the camera."
             },
             "end_angle": {
-                "type": "integer",
+                "type": "float",
                 "description": "The ending angle beyond which the camera should not turn."
             },
             "current_angle": {
@@ -40,7 +40,7 @@ turn_robot_camera_function = {
                 "description": "The direction to turn the camera."
             }
         },
-        "required": [ "amount_to_turn", "direction"]
+        "required": [ "turn_angle", "direction"]
     }
 } 
 
@@ -92,18 +92,23 @@ class RobotFunctions():
             direction: The direction to turn the camera ("clockwise" or "counterclockwise").
             
         Returns:
-            at_end_angle: True if camera has been turned to the stendart angle, False otherwise.
-            current_angle: The current angle of the camera after the turn.
-            error: error message if an error occurs
+            at_end: True if camera has been turned to the stendart angle, False otherwise.
+            last_angle: The current angle of the camera after the turn.
+            message: error message if an error occurs
+            success: True if the turn was successful, False otherwise
         """
-        if "amount_to_turn" not in args or "direction" not in args or "current_angle" not in args:      
+        if "turn_angle" not in args or "direction" not in args or "current_angle" not in args:      
             self.logger.debug("Missing required arguments for turn_robot_camera function.")
-            return { "status": "error: Missing required arguments for turn_robot_camera function." }
-        if  "end_angle" not in args: 
+            return { "message": "error: Missing required arguments for turn_robot_camera function.", "success": False }
+        if "end_angle" not in args: 
             args["end_angle"] = 360
+        if args["direction"] == "counterclockwise":
+            args["turn_angle"] = -args["turn_angle"]
         result = self.unity.turn_robot_camera(args)  
-        if "error" in result["status"]:
+        if "error" in result["message"]:
             return result
+        if "last_angle" in result:
+            result["current_angle"] = result["last_angle"]
         result["action"] = "resubmit"
         image_data = self.unity.image_from_unity()
         result["image"] = self.process_image(image_data)
@@ -124,23 +129,24 @@ class RobotFunctions():
         """
         if "label" not in args:
             self.logger.debug("Missing label for detect_objects function.")
-            return { "status": "error: Missing label for detect_objects function." }
+            return { "message": "error: Missing label for detect_objects function.", "success": False }
         image_png_data = self.unity.current_image
         if image_png_data is None:
             self.logger.debug("No image available from Unity.")
-            return { "status": "error: No image available from Unity." }
+            return { "message": "error: No image available from Unity.", "success": False }
         self.yolo.set_classes([ args["label"] ])
         image = Image.open(image_png_data)  
         image_array = np.array(image)
         if image_array.shape[-1] == 3:
             image_array = image_array[..., ::-1]
-        result = { "status": "Object not found" }
+        result = { "success": False, "message": "Object not found" }
         response = self.yolo.detect_objects(image_array)
         if response and isinstance(response, (list, tuple)) and len(response) > 0:
             firstbox = response[0]
             result = firstbox
             if "label" in firstbox and "box" in firstbox:
-                result["status"] = "Object found"
+                result["message"] = "Object found"
+                result["success"] = True
                 result["label"] = firstbox["label"]
                 result["box"] = firstbox["box"]
         result["image"] = self.process_image(image_png_data)

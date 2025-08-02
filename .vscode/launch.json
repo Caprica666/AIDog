@@ -29,8 +29,9 @@
             "request": "launch",
             "module": "pytest",
             "args": [
- //               "test_yolo.py", "test_robot_functions.py", "test_robot_controller.py"
-                "test_robot_controller.py"
+                 "test_yolo.py", "test_robot_functions.py", "test_robot_controller.py"
+ //               "test_robot_controller.py"
+ //               "test_robot_functions.py"
             ],
             "cwd": "${workspaceFolder}/gemini_server",
             "justMyCode": false

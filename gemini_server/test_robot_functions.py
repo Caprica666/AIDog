@@ -23,81 +23,91 @@ def test_get_function_list(robot_funcs):
 
 def test_turn_robot_camera_valid(robot_funcs):
     args = {
-        "amount_to_turn": 30,
+        "turn_angle": 30,
         "current_angle": 0,
         "direction": "clockwise",
         "end_angle": 180
         }
     result = robot_funcs.turn_robot_camera(args)
     assert "current_angle" in result
-    assert "at_end_angle" in result
+    assert "at_end" in result
     assert result["current_angle"] == 30
-    assert result["at_end_angle"] == False
+    assert result["at_end"] == False
+    assert result["success"] is True
     assert "action" in result
     assert "image" in result
-    assert result["status"] == "robot successfully turned"
+    assert "robot successfully turned" in result["message"] 
     
 def test_turn_robot_camera_end_angle(robot_funcs):
     args = {
-        "amount_to_turn": 30,
+        "turn_angle": 30,
         "current_angle": 60,
         "direction": "clockwise",
         "end_angle": 70
         }
     result = robot_funcs.turn_robot_camera(args)
     assert "current_angle" in result
-    assert "at_end_angle" in result
+    assert "at_end" in result
     assert result["current_angle"] == 70
-    assert result["at_end_angle"] == True
+    assert result["at_end"] == True
+    assert result["success"] is True
     assert "action" in result
     assert "image" in result
-    assert result["status"] == "robot at end angle"
+    assert "robot at end angle" in result["message"]
     
 def test_turn_robot_camera_end_angle_neg(robot_funcs):
     args = {
-        "amount_to_turn": 30,
+        "turn_angle": 30,
         "current_angle": -60,
         "direction": "counterclockwise",
         "end_angle": -70
         }
     result = robot_funcs.turn_robot_camera(args)
     assert "current_angle" in result
-    assert "at_end_angle" in result
+    assert "at_end" in result
     assert result["current_angle"] == -70
-    assert result["at_end_angle"] == True
+    assert result["at_end"] == True
+    assert result["success"] is True
     assert "action" in result
     assert "image" in result
-    assert result["status"] == "robot at end angle"
+    assert "robot at end angle" in result["message"]
 
 def test_turn_robot_camera_missing_args(robot_funcs):
-    args = {"amount_to_turn": 30}
+    args = {"turn_angle": 30}
     result = robot_funcs.turn_robot_camera(args)
-    assert "error" in result["status"]
+    assert result["success"] is False
+    assert "error" in result["message"]
 
 def test_detect_object_missing_label(robot_funcs):
     result = robot_funcs.detect_object({})
-    assert "error" in result["status"]
+    assert result["success"] is False
+    assert "error" in result["message"]
 
 def test_detect_object_no_image(robot_funcs):
     robot_funcs.unity.current_image = None
     result = robot_funcs.detect_object({"label": "dog"})
-    assert "error" in result["status"]
+    assert result["success"] is False
+    assert "error" in result["message"]
 
 def test_detect_object_found(robot_funcs):
     result = robot_funcs.detect_object({"label": "ball"})
-    assert result["status"] == "Object not found"
-    args = {"amount_to_turn": 30, "current_angle": 0, "direction": "counterclockwise", "end_angle" : 180 }
+    assert result["message"] == "Object not found"
+    assert result["success"] is False
+    args = {"turn_angle": 30, "current_angle": 0, "direction": "counterclockwise", "end_angle" : 180 }
     result = robot_funcs.turn_robot_camera(args)
+    assert result["success"] is True
     assert result["current_angle"] == -30
-    assert result["status"] == "robot successfully turned"
+    assert "robot successfully turned" in result["message"]
     args["current_angle"] = result["current_angle"]
     result = robot_funcs.detect_object({"label": "ball"})
-    assert result["status"] == "Object found"
+    assert result["success"] is True
+    assert result["message"] == "Object found"
     assert result["label"] == "ball"
     assert result["box"] == [-0.5, 162.0, 43, 36]
     assert result["image"] is not None
 
 def test_detect_object_not_found(robot_funcs):
     result = robot_funcs.detect_object({"label": "cat"})
-    assert result["status"] == "Object not found"
+    assert result["success"] is False
+    assert result["message"] == "Object not found"
     assert result["image"] is not None

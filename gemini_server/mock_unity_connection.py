@@ -37,46 +37,42 @@ class MockUnityConnection:
             A dictionary containing the following parameter:
             current_angle: The current Y angle of the camera in degrees.
         """
-        if "current_angle" not in params or "direction" not in params:
-            return { "status": "error: set_robot_yangle is missing required parameter" }
+        if "current_angle" not in params:
+            return { "message": "error: set_robot_yangle is missing required parameter", "success": False }
         self.frame_count = 0
-        return { "status": "robot angle successfully set" }
+        return { "message": "robot angle successfully set", "success": True}
                 
     def turn_robot_camera(self, params):
         """Turn the camera in Unity by a specified number of degrees.
 
         Args:
             A dictionary containing the following parameters:
-            amount_to_turn: The number of degrees to turn the camera.
+            turn_angle: The number of degrees to turn the camera.
+            angular_velocity: The angular velocity of the turn. (degrees per second)
             current_angle: The current angle of the camera before the turn.
             end_angle: The starting angle of the camera.
-            direction: The direction to turn the camera ('left' or 'right').
 
         Returns:
             A JSON response indicating whether the camera is at the start angle after the turn.
-            at_end_angle: True if the camera is at the start angle, False otherwise.
-            current_angle: The current angle of the camera after the turn.
-            error: An error message if the request fails.
+            at_end: True if the camera is at the start angle, False otherwise.
+            last_angle: The current angle of the camera after the turn.
+            success: True if the turn was successful, False otherwise.
+            message: An error message if the request fails.
         """
-        if "amount_to_turn" not in params or "current_angle" not in params or "direction" not in params or "end_angle" not in params:
-            return { "status" : "error: turn_robot_camera is missing required parameters" }
+        if "turn_angle" not in params or "current_angle" not in params or "end_angle" not in params:
+            return { "message" : "error: turn_robot_camera is missing required parameters", "success": False }
         new_angle = params["current_angle"]
-        if params["direction"] == "clockwise":
-            new_angle += params["amount_to_turn"]
-        elif params["direction"] == "counterclockwise":
-            new_angle -= params["amount_to_turn"]
-        else:
-            return { "status": "error: turn_robot_camera direction not valid - " + params["direction"] }
-        response = { "current_angle" : new_angle, "at_end_angle": False }
-        response["status"] = "robot successfully turned"
+        new_angle += params["turn_angle"]
+        response = { "last_angle" : new_angle, "at_end": False, "success": True }
+        response["message"] = "robot successfully turned"
         if params["end_angle"] > 0 and new_angle >= params["end_angle"]:
-            response["at_end_angle"] = True
-            response["current_angle"] = params["end_angle"]
-            response["status"] = "robot at end angle"
+            response["at_end"] = True
+            response["last_angle"] = params["end_angle"]
+            response["message"] = "robot at end angle"
         elif params["end_angle"] <= 0 and new_angle <= params["end_angle"]:
-            response["at_end_angle"] = True
-            response["current_angle"] = params["end_angle"]
-            response["status"] = "robot at end angle"
+            response["at_end"] = True
+            response["last_angle"] = params["end_angle"]
+            response["message"] = "robot at end angle"
         return response
 
     def bounds_to_unity(self, object_name, bbox):
@@ -86,5 +82,5 @@ class MockUnityConnection:
             object_name: The name of the object.
             bbox: The bounding box coordinates in the format [x, y, width, height]. 
         """
-        return {"status": "Bounding box sent successfully"}
+        return {"message": "Bounding box sent successfully"}
 
