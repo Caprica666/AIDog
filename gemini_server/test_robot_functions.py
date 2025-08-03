@@ -1,7 +1,7 @@
 import os
 import pytest
 from robot_functions import RobotFunctions
-MOCK_UNITY = True
+MOCK_UNITY = False
 MOCK_YOLO = True
 MOCK_UNITY_DIR = os.path.join(os.path.dirname(__file__), 'static', 'mock_unity')
 

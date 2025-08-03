@@ -60,7 +60,7 @@ class MockUnityConnection:
             message: An error message if the request fails.
         """
         if "turn_angle" not in params or "current_angle" not in params or "end_angle" not in params:
-            return { "message" : "error: turn_robot_camera is missing required parameters", "success": False }
+            return { "message" : "error: aidog_rotatezaxis_absolute is missing required parameters", "success": False }
         new_angle = params["current_angle"]
         new_angle += params["turn_angle"]
         response = { "last_angle" : new_angle, "at_end": False, "success": True }

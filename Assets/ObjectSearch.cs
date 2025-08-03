@@ -38,7 +38,7 @@ public class ObjectSearch : MonoBehaviour
         Debug.Log($"Object '{objectName}' found with bounding box: {boundingBox[0]}, {boundingBox[1]}, {boundingBox[2]}, {boundingBox[3]}");
     }
 
-    public void OnTurnRobot(int degrees, string direction)
+    public void OnTurnRobot(float degrees, float angularVelocity)
     {
         // Handle the turn robot event here
         Debug.Log($"Turn robot '{degrees}'");
@@ -46,7 +46,7 @@ public class ObjectSearch : MonoBehaviour
         RobotEvents.OnTurnRobot?.Invoke(degrees);
     }
 
-    public void OnSetRobotYAngle(int degrees)
+    public void OnSetRobotYAngle(float degrees)
     {
         // Handle the turn robot event here
         Debug.Log($"Set robot Y angle to {degrees}");
@@ -173,7 +173,7 @@ public class ObjectSearch : MonoBehaviour
             }
             else
             {
-                OutputMessage(response, "error: set_robot_yangle is missing required parameters", HttpStatusCode.BadRequest);
+                OutputMessage(response, "error: aidog_rotatezaxis_absolute is missing required parameters", HttpStatusCode.BadRequest);
             }
         }
     }
@@ -201,33 +201,34 @@ public class ObjectSearch : MonoBehaviour
 
             if (data != null)
             {
-                int curangle;
+                float curangle = 0;
                 bool reached_end_angle = false;
                 string msg = "robot successfully turned";
                 Debug.Log($"Turn robot camera '{data.turn_angle}': [{string.Join(", ", data.direction)}]");
                 response.StatusCode = (int)HttpStatusCode.OK;
                 response.ContentType = "application/json";
-                
+                curangle = data.current_angle + data.turn_angle;
                 // determine if end angle has been reached
                 if ((data.end_angle > 0) && (curangle >= data.end_angle))
                 {
                     curangle = data.end_angle;
                     reached_end_angle = true;
-                    data.amount_to_turn = data.end_angle - data.current_angle;
+                    data.turn_angle = data.end_angle - data.current_angle;
                     msg = "robot at end angle";
                 }
                 else if ((data.end_angle <= 0) && (curangle <= data.end_angle))
                 {
                     curangle = data.end_angle;
                     reached_end_angle = true;
-                    data.amount_to_turn = data.current_angle - data.end_angle;
+                    data.turn_angle = data.current_angle - data.end_angle;
                     msg = "robot at end angle";
                 }
                 TurnResult result = new TurnResult
                 {
-                    current_angle = curangle,
+                    last_angle = curangle,
                     at_end = reached_end_angle,
-                    message = msg
+                    message = msg,
+                    success = true
                 };
 
                 mainThreadDispatcher.Enqueue(() =>
@@ -366,7 +367,7 @@ public class ObjectSearch : MonoBehaviour
     [System.Serializable]
     public class AnglePayload
     {
-        public int current_angle;
+        public float current_angle;
     }
 
     [System.Serializable]

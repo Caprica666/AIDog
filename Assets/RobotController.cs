@@ -1,8 +1,8 @@
 ﻿using UnityEngine;
 public static class RobotEvents
 {
-    public static System.Action<int> OnTurnRobot; // angle in degrees
-    public static System.Action<int> OnSetRobotYAngle; // angle in degrees
+    public static System.Action<float> OnTurnRobot; // angle in degrees
+    public static System.Action<float> OnSetRobotYAngle; // angle in degrees
 }
 
 public class RobotController : MonoBehaviour
@@ -21,7 +21,7 @@ public class RobotController : MonoBehaviour
         RobotEvents.OnSetRobotYAngle -= SetRobotYAngle;
     }
 
-    private void TurnRobotAboutYAxis(int angle)
+    private void TurnRobotAboutYAxis(float angle)
     {
         var newY = transform.eulerAngles.y + angle;
         transform.eulerAngles = new Vector3(
@@ -31,7 +31,7 @@ public class RobotController : MonoBehaviour
         //StartCoroutine(RotateRobot(angle, speed));
     }
 
-    private void SetRobotYAngle(int newY)
+    private void SetRobotYAngle(float newY)
     {
         transform.eulerAngles = new Vector3(
             transform.eulerAngles.x,
