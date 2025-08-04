@@ -8,11 +8,9 @@ using System;
 using Unity.VisualScripting.InputSystem;
 using UnityEngine.LightTransport;
 
-public class ObjectSearch : MonoBehaviour
+public class WebListener : MonoBehaviour
 {
-    public Camera captureCamera; // Reference to the camera to capture from
     public string unityListenerUrl = "http://localhost:5000/"; // URL of the agent server
-    public int TextureSize;
 
 
     private string objectName;
@@ -20,6 +18,15 @@ public class ObjectSearch : MonoBehaviour
     private Thread listenerThread;
     private UnityMainThreadDispatcher mainThreadDispatcher;
     private string outputType = "PNG";
+    private static int captureCount = 0;
+
+    /*
+     * Rotating the robot is done on the main thread, web requests are handled on a separate thread.
+     * The EventWaitHandle is used to signal when the rotation is complete.
+     * This allows the web request to wait for the rotation to finish before responding.
+     */
+    public bool asyncRotation = false; // Set to true for asynchronous rotation
+    private static EventWaitHandle waitForRotation = new EventWaitHandle(false, EventResetMode.ManualReset);
 
     void Start()
     {
@@ -38,19 +45,18 @@ public class ObjectSearch : MonoBehaviour
         Debug.Log($"Object '{objectName}' found with bounding box: {boundingBox[0]}, {boundingBox[1]}, {boundingBox[2]}, {boundingBox[3]}");
     }
 
-    public void OnTurnRobot(float degrees, float angularVelocity)
+    public void OnTurnRobot(float degrees, float speed, EventWaitHandle waitForRotation)
     {
         // Handle the turn robot event here
         Debug.Log($"Turn robot '{degrees}'");
 
-        RobotEvents.OnTurnRobot?.Invoke(degrees);
+        RobotEvents.OnTurnRobot?.Invoke(degrees, speed, waitForRotation);
     }
 
-    public void OnSetRobotYAngle(float degrees)
+    public void OnSetRobotYAngle(float degrees, float speed, EventWaitHandle waitForRotation)
     {
         // Handle the turn robot event here
-        Debug.Log($"Set robot Y angle to {degrees}");
-        RobotEvents.OnSetRobotYAngle?.Invoke(degrees); 
+        RobotEvents.OnSetRobotYAngle?.Invoke(degrees, speed, waitForRotation); 
     }
 
     private void StartHttpListener()
@@ -69,7 +75,10 @@ public class ObjectSearch : MonoBehaviour
                     HandleRequest(context);
                 }
                 catch (HttpListenerException) { break; } // Listener stopped
-                catch (Exception ex) { Debug.LogError(ex); }
+                catch (Exception ex)
+                {
+                    Debug.LogError(ex);
+                }
             }
         });
 
@@ -114,7 +123,7 @@ public class ObjectSearch : MonoBehaviour
         {
             SetRobotYAngle(context);
         }
-        if (request.HttpMethod == "GET" && request.Url.AbsolutePath == "/ping")
+        else if (request.HttpMethod == "GET" && request.Url.AbsolutePath == "/ping")
         {
             Ping(context);
         }
@@ -134,7 +143,8 @@ public class ObjectSearch : MonoBehaviour
 
         response.ContentType = "application/json";
         response.StatusCode = (int) code;
-        var response_data = "{ \"status\" : \"" + errmsg + "\" }";
+        string status = (code == HttpStatusCode.OK) ? "true" : "false";
+        var response_data = "{ \"message\" : \"" + errmsg + "\", \"success\" : " + status + " }";
         buffer = Encoding.UTF8.GetBytes(response_data);
         response.ContentLength64 = buffer.Length;
         response.OutputStream.Write(buffer, 0, buffer.Length);
@@ -162,13 +172,20 @@ public class ObjectSearch : MonoBehaviour
 
             if (data != null)
             {
+                if (data.angular_velocity <= 0)
+                {
+                    OutputMessage(response, "error: angular_velocity must be positive", HttpStatusCode.BadRequest);
+                    return;
+                }
                 Debug.Log($"Set robot Y angle '{data.current_angle}'");
                 response.StatusCode = (int) HttpStatusCode.OK;
 
                 mainThreadDispatcher.Enqueue(() =>
                 {
-                    OnSetRobotYAngle(data.current_angle);
+                    OnSetRobotYAngle(data.current_angle, data.angular_velocity, waitForRotation);
                 });
+                waitForRotation.WaitOne();  // Wait for the rotation to complete
+                waitForRotation.Reset();    // Reset the wait handle for the next rotation
                 OutputMessage(response, "robot angle successfully set", HttpStatusCode.OK);
             }
             else
@@ -204,6 +221,11 @@ public class ObjectSearch : MonoBehaviour
                 float curangle = 0;
                 bool reached_end_angle = false;
                 string msg = "robot successfully turned";
+                if (data.angular_velocity <= 0)
+                {
+                    OutputMessage(response, "error: angular_velocity must be positive", HttpStatusCode.BadRequest);
+                    return;
+                }
                 Debug.Log($"Turn robot camera '{data.turn_angle}': [{string.Join(", ", data.direction)}]");
                 response.StatusCode = (int)HttpStatusCode.OK;
                 response.ContentType = "application/json";
@@ -230,12 +252,13 @@ public class ObjectSearch : MonoBehaviour
                     message = msg,
                     success = true
                 };
-
+            
                 mainThreadDispatcher.Enqueue(() =>
                 {
-                    OnTurnRobot(data.turn_angle, data.angular_velocity);
+                    OnTurnRobot(data.turn_angle, data.angular_velocity, waitForRotation);
                 });
-
+                waitForRotation.WaitOne();  // Wait for the rotation to complete
+                waitForRotation.Reset();    // Reset the wait handle for the next rotation
                 var response_data = JsonConvert.SerializeObject(result);
                 buffer = Encoding.UTF8.GetBytes(response_data);
             }
@@ -262,14 +285,17 @@ public class ObjectSearch : MonoBehaviour
 
     private void ImageFromUnity(HttpListenerContext context)
     {
-        var request = context.Request;
-        var response = context.Response;
         byte[] imageBytes = null;
+        ImageCapture capturer = null;
 
         // Schedule the CaptureImage call on the main thread
         mainThreadDispatcher.Enqueue(() =>
         {
-            imageBytes = (outputType == "PNG") ? CaptureImagePNG() : CaptureImagePixels();
+            capturer = gameObject.GetComponent<ImageCapture>();
+            if (capturer != null)
+            {
+                imageBytes = (outputType == "PNG") ? capturer.CaptureImagePNG() : capturer.CaptureImagePixels();
+            }
         });
 
         while (imageBytes == null)
@@ -277,13 +303,15 @@ public class ObjectSearch : MonoBehaviour
             Thread.Sleep(2); // Wait for the capture to complete
         }
 
-        if (imageBytes != null)
+        var request = context.Request;
+        var response = context.Response;
+        if ((capturer != null) && (imageBytes != null))
         {
+            //String fname = "capturedimage" + Convert.ToString(++captureCount) + ".png";
             response.ContentType = (outputType == "PNG") ? "image/png" : "application/octet-stream";
             response.ContentLength64 = imageBytes.Length;
             response.OutputStream.Write(imageBytes, 0, imageBytes.Length);
-            response.OutputStream.Write(imageBytes, 0, imageBytes.Length);
-            //File.WriteAllBytes("capturedimage.png", imageBytes);
+            //File.WriteAllBytes(fname, imageBytes);
             imageBytes = null;
         }
         else
@@ -292,7 +320,6 @@ public class ObjectSearch : MonoBehaviour
             byte[] buffer = Encoding.UTF8.GetBytes("Failed to capture image");
             response.ContentLength64 = buffer.Length;
             response.OutputStream.Write(buffer, 0, buffer.Length);
-            //File.WriteAllBytes("capturedimage.png", imageBytes);
         }
     }
 
@@ -323,38 +350,6 @@ public class ObjectSearch : MonoBehaviour
         }
     }
 
-    private Texture2D CaptureImage()
-    {
-        RenderTexture renderTexture = captureCamera.targetTexture;
-        if (renderTexture == null)
-        {
-            renderTexture = new RenderTexture(TextureSize, TextureSize, 24);
-            captureCamera.targetTexture = renderTexture;
-        }
-
-        // Capture the image
-        Texture2D screenShot = new Texture2D(TextureSize, TextureSize, TextureFormat.RGB24, false);
-        captureCamera.Render();
-
-        RenderTexture.active = renderTexture;
-        screenShot.ReadPixels(new Rect(0, 0, TextureSize, TextureSize), 0, 0);
-        screenShot.Apply();
-
-        RenderTexture.active = null;
-        return screenShot;
-    }
-
-    private byte[] CaptureImagePixels()
-    {
-        Texture2D texture = CaptureImage();
-        return texture.GetRawTextureData();
-    }
-
-    private byte[] CaptureImagePNG()
-    {
-        Texture2D texture = CaptureImage();
-        return texture.EncodeToPNG();
-    }
 
     [System.Serializable]
     private class BoundsPayload
@@ -368,6 +363,7 @@ public class ObjectSearch : MonoBehaviour
     public class AnglePayload
     {
         public float current_angle;
+        public float angular_velocity;
     }
 
     [System.Serializable]

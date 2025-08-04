@@ -89,6 +89,7 @@ class RobotFunctions():
         Args: dictionary with the following:
             turn_angle: The number of degrees to turn the camera.
             current_angle: The current angle of the camera before this turn.
+            angular_velocity: The speed of the turn in degrees per second. (default is 10)
             direction: The direction to turn the camera ("clockwise" or "counterclockwise").
             
         Returns:
@@ -100,6 +101,11 @@ class RobotFunctions():
         if "turn_angle" not in args or "direction" not in args or "current_angle" not in args:      
             self.logger.debug("Missing required arguments for turn_robot_camera function.")
             return { "message": "error: Missing required arguments for turn_robot_camera function.", "success": False }
+        if "angular_velocity" not in args:
+            args["angular_velocity"] = 10
+        if args["angular_velocity"] < 0:
+            self.logger.debug("Angular velocity must be a positive number.")
+            return { "message": "error: Angular velocity must be a positive number.", "success": False }
         if "end_angle" not in args: 
             args["end_angle"] = 360
         if args["direction"] == "counterclockwise":

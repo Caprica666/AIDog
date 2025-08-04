@@ -1888,6 +1888,7 @@ GameObject:
   - component: {fileID: 2114605538}
   - component: {fileID: 2114605537}
   - component: {fileID: 2114605536}
+  - component: {fileID: 2114605540}
   m_Layer: 0
   m_Name: HeadCamera
   m_TagString: Untagged
@@ -1922,9 +1923,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0b4690516a7bb0540a11aaa793d1365b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  captureCamera: {fileID: 2114605539}
   unityListenerUrl: http://localhost:5000/
-  TextureSize: 256
 --- !u!114 &2114605537
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2028,6 +2027,20 @@ Camera:
   m_OcclusionCulling: 1
   m_StereoConvergence: 10
   m_StereoSeparation: 0.022
+--- !u!114 &2114605540
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2114605534}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0bf39c6ad6e659241803a562169695cb, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  captureCamera: {fileID: 2114605539}
+  TextureSize: 256
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

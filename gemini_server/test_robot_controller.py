@@ -4,8 +4,8 @@ import logging
 from robot_controller import RobotController
 from gemini_connection import GeminiClient
 
-MOCK_UNITY = True
-MOCK_YOLO = True
+MOCK_UNITY = False
+MOCK_YOLO = False
 MOCK_UNITY_DIR = os.path.join(os.path.dirname(__file__), 'static', 'mock_unity')
 logging.basicConfig(level = logging.DEBUG)
 logger = logging.getLogger("RobotClient")
@@ -18,7 +18,7 @@ def robot_controller():
         robot = RobotController(logger, aihelper, mock_unity_dir = MOCK_UNITY_DIR, mock_yolo = MOCK_YOLO)
     else:
         robot = RobotController(logger, aihelper)
-    robot.robot.unity.set_robot_yangle({ "current_angle" : 60 })
+    robot.robot.unity.set_robot_yangle({ "current_angle" : 60, "angular_velocity": 20 })
     return robot
 
 def test_process_bounding_box_list(robot_controller):
@@ -58,7 +58,7 @@ def test_process_bounding_box_error(robot_controller):
 
 
 def test_turn_robot_camera_valid(robot_controller):
-    args = {"turn_angle": 30, "current_angle": 0, "direction": "clockwise", "end_angle" : 180}
+    args = {"turn_angle": 30, "current_angle": 0, "angular_velocity": 10, "direction": "clockwise", "end_angle" : 180}
     result = robot_controller.process_function_call("turn_robot_camera", args)
     assert "current_angle" in result
     assert result["current_angle"] == 30
@@ -92,7 +92,7 @@ def test_detect_object_no_image(robot_controller):
 def test_detect_object_found(robot_controller):
     result = robot_controller.process_function_call("detect_object", {"label": "ball"})
     assert result["message"] == "Object not found"
-    args = {"turn_angle": 30, "current_angle": 0, "direction": "counterclockwise", "end_angle" : -180 }
+    args = {"turn_angle": 30, "current_angle": 0, "angular_velocity": 10, "direction": "counterclockwise", "end_angle" : -180 }
     result = robot_controller.process_function_call("turn_robot_camera", args)
     assert result["current_angle"] == -30
     assert result["success"] is True

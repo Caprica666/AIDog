@@ -38,15 +38,16 @@ class UnityConnection:
          Args:
             A dictionary containing the following parameter:
             current_angle: The current Y angle of the camera in degrees.
+            angular_velocity: The angular velocity of the turn. (degrees per second)
         """
-        if "current_angle" not in params:
+        if "current_angle" not in params or "angular_velocity" not in params:
             return { "message": "error: aidog_rotatezaxis_absolute is missing required parameter", "success": False }
 
         url = f"{self.unity_app_url}/aidog_rotatezaxis_absolute"
         json_params = json.dumps(params)  # Convert params to a JSON string
-        response_dict = { }
+        response_dict = { "success": False }
         try:
-            response = httpx.post(url, data=json_params, headers={"Content-Type": "application/json"})
+            response = httpx.post(url, data=json_params, headers={"Content-Type": "application/json"}, timeout=20)
             if response.status_code == 200:
                 if response.headers.get('Content-Type') == 'application/json':
                     response_dict = response.json()
@@ -63,13 +64,11 @@ class UnityConnection:
                     if "message" not in response_dict:
                         response_dict["message"] = "error: set_robot_yangle Failed to set angle"
                 else:
-                    response_dict["message"] = "error: set_robot_yangle Failed to set angle"
-                response_dict["success"] = False
+                    response_dict["message"] = "error: aidog_rotatezaxis_absolute Failed to set angle"
                 self.logger.error(response_dict["message"])               
         except httpx.RequestError as e:
             self.logger.error(f"Request failed: {e}")
-            response_dict["message"] = "error: set_robot_yangle " + str(e)
-            response_dict["success"] = False
+            response_dict["message"] = "error: aidog_rotatezaxis_absolute " + str(e)
         return response_dict
         
     def turn_robot_camera(self, params):

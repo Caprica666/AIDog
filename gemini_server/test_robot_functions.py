@@ -11,7 +11,7 @@ def robot_funcs():
         robot = RobotFunctions(mock_unity_dir = MOCK_UNITY_DIR, mock_yolo = MOCK_YOLO)
     else:
         robot = RobotFunctions()
-    robot.unity.set_robot_yangle({ "current_angle" : 60 })
+    robot.unity.set_robot_yangle({ "current_angle" : 60, "angular_velocity": 20 })
     robot.yolo.frame_count = 0
     return robot            
 
@@ -25,6 +25,7 @@ def test_turn_robot_camera_valid(robot_funcs):
     args = {
         "turn_angle": 30,
         "current_angle": 0,
+        "angular_velocity": 10,
         "direction": "clockwise",
         "end_angle": 180
         }
@@ -42,6 +43,7 @@ def test_turn_robot_camera_end_angle(robot_funcs):
     args = {
         "turn_angle": 30,
         "current_angle": 60,
+        "angular_velocity": 10,
         "direction": "clockwise",
         "end_angle": 70
         }
@@ -59,6 +61,7 @@ def test_turn_robot_camera_end_angle_neg(robot_funcs):
     args = {
         "turn_angle": 30,
         "current_angle": -60,
+        "angular_velocity": 10,
         "direction": "counterclockwise",
         "end_angle": -70
         }
@@ -93,7 +96,7 @@ def test_detect_object_found(robot_funcs):
     result = robot_funcs.detect_object({"label": "ball"})
     assert result["message"] == "Object not found"
     assert result["success"] is False
-    args = {"turn_angle": 30, "current_angle": 0, "direction": "counterclockwise", "end_angle" : 180 }
+    args = {"turn_angle": 30, "current_angle": 0, "angular_velocity": 10, "direction": "counterclockwise", "end_angle" : 180 }
     result = robot_funcs.turn_robot_camera(args)
     assert result["success"] is True
     assert result["current_angle"] == -30

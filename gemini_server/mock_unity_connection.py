@@ -36,9 +36,10 @@ class MockUnityConnection:
          Args:
             A dictionary containing the following parameter:
             current_angle: The current Y angle of the camera in degrees.
+            angular_velocity: The angular velocity of the turn. (degrees per second)
         """
-        if "current_angle" not in params:
-            return { "message": "error: set_robot_yangle is missing required parameter", "success": False }
+        if "current_angle" not in params or "angular_velocity" not in params:
+            return { "message": "error: set_robot_yangle is missing a required parameter", "success": False }
         self.frame_count = 0
         return { "message": "robot angle successfully set", "success": True}
                 
@@ -59,7 +60,8 @@ class MockUnityConnection:
             success: True if the turn was successful, False otherwise.
             message: An error message if the request fails.
         """
-        if "turn_angle" not in params or "current_angle" not in params or "end_angle" not in params:
+        if "turn_angle" not in params or "current_angle" not in params or \
+            "end_angle" not in params or "angular_velocity" not in params  :
             return { "message" : "error: aidog_rotatezaxis_absolute is missing required parameters", "success": False }
         new_angle = params["current_angle"]
         new_angle += params["turn_angle"]
