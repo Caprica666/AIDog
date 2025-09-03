@@ -5,12 +5,13 @@ from PIL import Image
 from yolo_connection import ObjectDetector
 from mock_yolo_connection import MockObjectDetector
 from unity_connection import UnityConnection
+from ros_connection import ROSConnection
 from mock_unity_connection import MockUnityConnection
 import logging
 
 logging.basicConfig(level = logging.DEBUG)
 
-UNITY_APP_URL = "http://localhost:5000"
+ROBOT_URL = "http://localhost:5000"
 
 #
 # Description of the function to turn the robot camera
@@ -65,19 +66,24 @@ detect_object_function = {
 
 YOLO_MODEL = "yoloe-11l-seg.pt"
 class RobotFunctions():
-    def __init__(self, mock_unity_dir = None, mock_yolo = False):
+    def __init__(self, connection_type, mock_unity_dir = None, mock_yolo = False):
         self.function_list = [ turn_robot_camera_function, detect_object_function ]
         self.logger = logging.getLogger("RobotFunctions")
         self.logger.setLevel(logging.DEBUG)
-        if mock_unity_dir:
-            self.unity = MockUnityConnection(UNITY_APP_URL, self.logger, mock_unity_dir)
+        if connection_type == "mock_unity" and mock_unity_dir is not None:
+            self.remote_robot = MockUnityConnection(ROBOT_URL, self.logger, mock_unity_dir)
             if mock_yolo:
-                self.yolo = MockObjectDetector(model_name = YOLO_MODEL)
+                self.yolo = MockObjectDetector(self.logger, model_name = YOLO_MODEL)
             else:
-                self.yolo = ObjectDetector(model_name = YOLO_MODEL)
+                self.yolo = ObjectDetector(self.logger, model_name = YOLO_MODEL)
+        elif connection_type == "unity":
+            self.remote_robot = UnityConnection(ROBOT_URL, self.logger)
+            self.yolo = ObjectDetector(self.logger, model_name = YOLO_MODEL)
+        elif connection_type == "ros":
+            self.remote_robot = ROSConnection(ROBOT_URL, self.logger)
+            self.yolo = ObjectDetector(self.logger, model_name = YOLO_MODEL)
         else:
-            self.unity = UnityConnection(UNITY_APP_URL, self.logger)
-            self.yolo = ObjectDetector(model_name = YOLO_MODEL)
+            raise ValueError("Invalid connection type `{connection_type}`. Must be 'mock_unity', 'unity', or 'ros'.")
       
     def get_function_list(self):
         return self.function_list
@@ -93,7 +99,7 @@ class RobotFunctions():
             direction: The direction to turn the camera ("clockwise" or "counterclockwise").
             
         Returns:
-            at_end: True if camera has been turned to the stendart angle, False otherwise.
+            at_end: True if camera has been turned to the end angle, False otherwise.
             last_angle: The current angle of the camera after the turn.
             message: error message if an error occurs
             success: True if the turn was successful, False otherwise
@@ -110,13 +116,13 @@ class RobotFunctions():
             args["end_angle"] = 360
         if args["direction"] == "counterclockwise":
             args["turn_angle"] = -args["turn_angle"]
-        result = self.unity.turn_robot_camera(args)  
+        result = self.remote_robot.turn_robot_camera(args)  
         if "error" in result["message"]:
             return result
         if "last_angle" in result:
             result["current_angle"] = result["last_angle"]
         result["action"] = "resubmit"
-        image_data = self.unity.image_from_unity()
+        image_data = self.remote_robot.image_from_robot()
         result["image"] = self.process_image(image_data)
         return result
 
@@ -136,10 +142,11 @@ class RobotFunctions():
         if "label" not in args:
             self.logger.debug("Missing label for detect_objects function.")
             return { "message": "error: Missing label for detect_objects function.", "success": False }
-        image_png_data = self.unity.current_image
+        image_png_data = self.remote_robot.current_image
         if image_png_data is None:
-            self.logger.debug("No image available from Unity.")
-            return { "message": "error: No image available from Unity.", "success": False }
+            self.logger.debug("No image available from robot camera.")
+            return { "message": "error: No image available from robot camera.", "success": False }
+        self.logger.debug("detect_objects label: " + args["label"])
         self.yolo.set_classes([ args["label"] ])
         image = Image.open(image_png_data)  
         image_array = np.array(image)
@@ -149,12 +156,14 @@ class RobotFunctions():
         response = self.yolo.detect_objects(image_array)
         if response and isinstance(response, (list, tuple)) and len(response) > 0:
             firstbox = response[0]
-            result = firstbox
             if "label" in firstbox and "box" in firstbox:
                 result["message"] = "Object found"
                 result["success"] = True
                 result["label"] = firstbox["label"]
                 result["box"] = firstbox["box"]
+                self.logger.debug("detect_object found " + result["label"])
+        else:
+            self.logger.debug("detect_object did not find " + args["label"])
         result["image"] = self.process_image(image_png_data)
         return result
     

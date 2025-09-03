@@ -2,12 +2,14 @@ from ultralytics import YOLO
 import numpy as np
 
 class ObjectDetector():
-    def __init__(self, model_name = "yoloe-11l-seg.pt", labels = None):
+    def __init__(self, logger, model_name = "yoloe-11l-seg.pt", labels = None):
         self.model_name = model_name
         self.model = YOLO(self.model_name)
         self.labels = None
+        self.logger = logger
         if labels:
             self.set_classes(labels)
+        self.logger.debug("ObjectDetector with model " + model_name)    
         
     def set_classes(self, labels):
         if self.labels != labels:
@@ -34,6 +36,7 @@ class ObjectDetector():
                 coords = [int(c) for c in coords]  # Convert all coords to int
                 bbox = [ coords[0] - coords[2] / 2, coords[1] - coords[3] / 3, coords[2], coords[3]]
                 box_results.append({ "label" : name, "box": bbox })
+                self.logger.debug("ObjectDetector found " + name)
         return box_results
 
 

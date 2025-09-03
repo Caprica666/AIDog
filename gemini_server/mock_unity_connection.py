@@ -1,28 +1,23 @@
 
-import json
-from flask import jsonify
+
 import os
 import io
+from robot_connection import RobotConnection
 
-class MockUnityConnection:
-    def __init__(self, unity_app_url, logger, mock_unity_dir):
-        #self.app = app
-        self.logger = logger
-        self.unity_app_url = unity_app_url
-        self.image_size = 256
+class MockUnityConnection(RobotConnection):
+    def __init__(self, robot_url, logger, mock_unity_dir):
+        super().__init__(robot_url, logger)
         self.frame_count = 0
         self.mock_dir = mock_unity_dir
-        self.current_image = self.image_from_unity()
-
-    def ping(self):
-        """A simple ping endpoint to check server status."""
-        return jsonify({"message": "pong"}), 200
+        self.logger.debug("MockUnityConnection at URL " + robot_url)
+        self.current_image = self.image_from_robot()
   
-    def image_from_unity(self):
+    def image_from_robot(self):
         """Fetch an image from Unity and convert it to a PNG encoded byte array."""
         self.frame_count += 1
         if self.frame_count > 4:
             self.frame_count = 1
+        self.logger.debug("MockUnityConnection image_from_robot: frame #" + str(self.frame_count))
         filename = "capturedimage" + str(self.frame_count) + ".png"
         image_file_name = os.path.join(self.mock_dir, filename)
         with open(image_file_name, 'rb') as image_png_file:
@@ -41,6 +36,8 @@ class MockUnityConnection:
         if "current_angle" not in params or "angular_velocity" not in params:
             return { "message": "error: set_robot_yangle is missing a required parameter", "success": False }
         self.frame_count = 0
+        self.current_image = self.image_from_robot()
+        self.logger.debug("MockUnityConnection set_robot_yangle: frame #" + str(self.frame_count))
         return { "message": "robot angle successfully set", "success": True}
                 
     def turn_robot_camera(self, params):
@@ -75,6 +72,7 @@ class MockUnityConnection:
             response["at_end"] = True
             response["last_angle"] = params["end_angle"]
             response["message"] = "robot at end angle"
+        self.logger.debug("MockUnityConnection turn_robot_camera: frame #" + str(self.frame_count))
         return response
 
     def bounds_to_unity(self, object_name, bbox):

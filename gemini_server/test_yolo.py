@@ -3,6 +3,9 @@ import yolo_connection as Yolo
 from PIL import Image
 import os
 import numpy as np
+import logging
+
+logging.basicConfig(level = logging.DEBUG)
 
 do_compare = True
 #detect_this = ["dog", "box", "ball", "toy"]
@@ -101,7 +104,9 @@ class TestYOLOObjectDetection(unittest.TestCase):
             cls.test_results = test_results_yolo12n
             labels = None
         cls.do_compare = do_compare
-        cls.yolo = Yolo.ObjectDetector(model_name = cls.yolo_model, labels=labels)
+        logger = logging.getLogger("YOLOTest")
+        logger.setLevel(logging.DEBUG)
+        cls.yolo = Yolo.ObjectDetector(logger, model_name = cls.yolo_model, labels=labels)
 
     def detect_objects_in_file(self, filename):
         image_file = os.path.join(self.static_dir, filename)

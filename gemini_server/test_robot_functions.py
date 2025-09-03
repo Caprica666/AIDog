@@ -1,19 +1,29 @@
 import os
 import pytest
+from PIL import Image
+import numpy as np
 from robot_functions import RobotFunctions
-MOCK_UNITY = False
-MOCK_YOLO = True
+MOCK_UNITY = True
+MOCK_YOLO = False
 MOCK_UNITY_DIR = os.path.join(os.path.dirname(__file__), 'static', 'mock_unity')
 
 @pytest.fixture
 def robot_funcs():
     if MOCK_UNITY:
-        robot = RobotFunctions(mock_unity_dir = MOCK_UNITY_DIR, mock_yolo = MOCK_YOLO)
+        robot = RobotFunctions("mock_unity", mock_unity_dir = MOCK_UNITY_DIR, mock_yolo = MOCK_YOLO)
     else:
-        robot = RobotFunctions()
-    robot.unity.set_robot_yangle({ "current_angle" : 60, "angular_velocity": 20 })
+        robot = RobotFunctions("unity")
+    robot.remote_robot.set_robot_yangle({ "current_angle" : 60, "angular_velocity": 20 })
     robot.yolo.frame_count = 0
-    return robot            
+    robot.remote_robot.frame_count = 0
+    robot.remote_robot.image_from_robot()
+    return robot
+
+def show_image(image_png_data):
+    if image_png_data is None:
+        return
+    image = Image.open(image_png_data)
+    image.show()              
 
 def test_get_function_list(robot_funcs):
     funcs = robot_funcs.get_function_list()
@@ -87,7 +97,7 @@ def test_detect_object_missing_label(robot_funcs):
     assert "error" in result["message"]
 
 def test_detect_object_no_image(robot_funcs):
-    robot_funcs.unity.current_image = None
+    robot_funcs.remote_robot.current_image = None
     result = robot_funcs.detect_object({"label": "dog"})
     assert result["success"] is False
     assert "error" in result["message"]
@@ -98,10 +108,11 @@ def test_detect_object_found(robot_funcs):
     assert result["success"] is False
     args = {"turn_angle": 30, "current_angle": 0, "angular_velocity": 10, "direction": "counterclockwise", "end_angle" : 180 }
     result = robot_funcs.turn_robot_camera(args)
-    assert result["success"] is True
     assert result["current_angle"] == -30
     assert "robot successfully turned" in result["message"]
+    assert result["success"] is True
     args["current_angle"] = result["current_angle"]
+    
     result = robot_funcs.detect_object({"label": "ball"})
     assert result["success"] is True
     assert result["message"] == "Object found"

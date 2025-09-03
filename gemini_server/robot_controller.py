@@ -29,10 +29,10 @@ initial_prompt = """
     """
 
 class RobotController():
-    def __init__(self, logger, aihelper, mock_unity_dir = None, mock_yolo = False):
+    def __init__(self, logger, aihelper, connection_type, mock_unity_dir = None, mock_yolo = False):
         self.logger = logger
         self.aihelper = aihelper
-        self.robot = RobotFunctions(mock_unity_dir, mock_yolo)      
+        self.robot = RobotFunctions(connection_type, mock_unity_dir, mock_yolo)      
         self.function_info = None
         aihelper.set_initial_prompt(initial_prompt)
         aihelper.set_tools(self.robot.get_function_list())

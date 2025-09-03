@@ -15,10 +15,13 @@ logger.setLevel(logging.DEBUG)
 def robot_controller():
     aihelper = GeminiClient(logger, model_name = "gemini-2.0-flash")
     if MOCK_UNITY:
-        robot = RobotController(logger, aihelper, mock_unity_dir = MOCK_UNITY_DIR, mock_yolo = MOCK_YOLO)
+        robot = RobotController(logger, aihelper, "mock_unity", mock_unity_dir = MOCK_UNITY_DIR, mock_yolo = MOCK_YOLO)
     else:
-        robot = RobotController(logger, aihelper)
-    robot.robot.unity.set_robot_yangle({ "current_angle" : 60, "angular_velocity": 20 })
+        robot = RobotController(logger, aihelper, "unity")
+    robot.robot.remote_robot.set_robot_yangle({ "current_angle" : 60, "angular_velocity": 20 })
+    robot.robot.yolo.frame_count = 0
+    robot.robot.remote_robot.frame_count = 0
+    robot.robot.remote_robot.image_from_robot()
     return robot
 
 def test_process_bounding_box_list(robot_controller):
@@ -83,7 +86,7 @@ def test_detect_object_missing_label(robot_controller):
 
 
 def test_detect_object_no_image(robot_controller):
-    robot_controller.robot.unity.current_image = None
+    robot_controller.robot.remote_robot.current_image = None
     result = robot_controller.process_function_call("detect_object", {"label": "dog"})
     assert "error" in result["message"]
     assert result["success"] is False

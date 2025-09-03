@@ -7,18 +7,18 @@ using System.IO;
 using System;
 using Unity.VisualScripting.InputSystem;
 using UnityEngine.LightTransport;
+using NUnit.Framework;
 
 public class WebListener : MonoBehaviour
 {
     public string unityListenerUrl = "http://localhost:5000/"; // URL of the agent server
 
-
-    private string objectName;
     private HttpListener httpListener;
     private Thread listenerThread;
     private UnityMainThreadDispatcher mainThreadDispatcher;
     private string outputType = "PNG";
     private static int captureCount = 0;
+    private static int timeOut = 20000;
 
     /*
      * Rotating the robot is done on the main thread, web requests are handled on a separate thread.
@@ -26,7 +26,7 @@ public class WebListener : MonoBehaviour
      * This allows the web request to wait for the rotation to finish before responding.
      */
     public bool asyncRotation = false; // Set to true for asynchronous rotation
-    private static EventWaitHandle waitForRotation = new EventWaitHandle(false, EventResetMode.ManualReset);
+    private static EventWaitHandle waitForRotation = new EventWaitHandle(false, EventResetMode.AutoReset);
 
     void Start()
     {
@@ -179,13 +179,24 @@ public class WebListener : MonoBehaviour
                 }
                 Debug.Log($"Set robot Y angle '{data.current_angle}'");
                 response.StatusCode = (int) HttpStatusCode.OK;
-
+                bool signaled = waitForRotation.WaitOne(0);
+                if (signaled)
+                {
+                    Debug.Log($"ERR0R: Set robot Y angle already signaled");
+                    waitForRotation.Reset();
+                }
                 mainThreadDispatcher.Enqueue(() =>
                 {
                     OnSetRobotYAngle(data.current_angle, data.angular_velocity, waitForRotation);
                 });
-                waitForRotation.WaitOne();  // Wait for the rotation to complete
-                waitForRotation.Reset();    // Reset the wait handle for the next rotation
+                waitForRotation.WaitOne(timeOut);  // Wait for the rotation to complete
+                //waitForRotation.Reset();
+                signaled = waitForRotation.WaitOne(0);
+                if (signaled)
+                {
+                    Debug.Log($"ERR0R: Set robot Y angle signaled after Reset");
+                }
+                Debug.Log($"Set robot Y angle complete");
                 OutputMessage(response, "robot angle successfully set", HttpStatusCode.OK);
             }
             else
@@ -252,15 +263,26 @@ public class WebListener : MonoBehaviour
                     message = msg,
                     success = true
                 };
-            
+                bool signaled = waitForRotation.WaitOne(0);
+                if (signaled)
+                {
+                    Debug.Log($"ERR0R: Turn robot camera already signaled");
+                    waitForRotation.Reset();
+                }
                 mainThreadDispatcher.Enqueue(() =>
                 {
                     OnTurnRobot(data.turn_angle, data.angular_velocity, waitForRotation);
                 });
-                waitForRotation.WaitOne();  // Wait for the rotation to complete
-                waitForRotation.Reset();    // Reset the wait handle for the next rotation
+                waitForRotation.WaitOne(timeOut);  // Wait for the rotation to complete
+//                waitForRotation.Reset();
+                signaled = waitForRotation.WaitOne(0);
+                if (signaled)
+                {
+                    Debug.Log($"ERR0R: Turn robot camera signaled after Reset");
+                }
                 var response_data = JsonConvert.SerializeObject(result);
                 buffer = Encoding.UTF8.GetBytes(response_data);
+                Debug.Log($"Turn robot camera complete");
             }
             else
             {
@@ -312,6 +334,7 @@ public class WebListener : MonoBehaviour
             response.ContentLength64 = imageBytes.Length;
             response.OutputStream.Write(imageBytes, 0, imageBytes.Length);
             //File.WriteAllBytes(fname, imageBytes);
+            //Debug.Log("Image captured " + fname);
             imageBytes = null;
         }
         else

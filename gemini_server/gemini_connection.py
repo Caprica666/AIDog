@@ -67,7 +67,7 @@ class GeminiClient(LLMClient):
             )
         except Exception as e:
             self.logger.error(f"Gemini call failed: {str(e)}")
-            result["status"] = "ERROR: " + str(e)
+            result["message"] = "error: " + str(e)
             return result
         parts = response.candidates[0].content.parts
         function_info = None

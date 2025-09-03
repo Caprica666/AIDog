@@ -15,7 +15,6 @@ public class RobotController : MonoBehaviour
 {
     private bool asyncRotation = true;
     private bool isRotating = false;
-    private static int captureCount = 0;
 
     // Subscribe to the OnTurnRobot event
     private void OnEnable()
@@ -41,13 +40,12 @@ public class RobotController : MonoBehaviour
         {
             var newY = transform.eulerAngles.y + angle;
             transform.eulerAngles = new Vector3(transform.eulerAngles.x, newY, transform.eulerAngles.z);
-            waitHandle?.Set();                // Signal that the rotation is complete
+            waitHandle.Set();                // Signal that the rotation is complete
         }
     }
 
     private void SetRobotYAngle(float newY, float speed, EventWaitHandle waitHandle)
     {
-        Debug.Log($"Set robot Y angle to {newY}");
         if (asyncRotation)
         {
             StartCoroutine(RotateYAxisAbsolute(newY, speed, waitHandle)); // Speed is arbitrary here
@@ -55,20 +53,7 @@ public class RobotController : MonoBehaviour
         else
         {
             transform.eulerAngles = new Vector3(transform.eulerAngles.x, newY, transform.eulerAngles.z);
-            waitHandle?.Set();                // Signal that the rotation is complete
-        }
-    }
-
-    private void CaptureImage()
-    {
-        ImageCapture capturer = gameObject.GetComponentInChildren<ImageCapture>();
-        byte[] imageBytes;
-
-        if (capturer != null)
-        {
-            String fname = "imageAfterTurn" + Convert.ToString(++captureCount) + ".png";
-            imageBytes = capturer.CaptureImagePNG();
-            File.WriteAllBytes(fname, imageBytes);
+            waitHandle.Set();                // Signal that the rotation is complete
         }
     }
 
@@ -108,6 +93,7 @@ public class RobotController : MonoBehaviour
     {
         if (isRotating)
         {
+            Debug.Log($"Error - still rotating");
             yield break;
         }
 
@@ -118,10 +104,11 @@ public class RobotController : MonoBehaviour
         float newY = curY + angle;
         Quaternion endRotation = Quaternion.Euler(currentRot.x, newY, currentRot.z);
 
+
         if (Math.Abs(angle) < 0.001f)
         {
             Debug.Log($"No rotation necessary");
-            waitHandle?.Set();
+            waitHandle.Set();
             yield return null;
         }
         Debug.Log($"Rotating robot {angle} degrees in {duration} seconds");
@@ -134,7 +121,7 @@ public class RobotController : MonoBehaviour
         }
         isRotating = false;
         transform.rotation = endRotation; // Ensure final rotation is exact
-        Debug.Log($"Rotation complete");
-        waitHandle?.Set();                // Signal that the rotation is complete
+        Debug.Log($"Rotation complete current angle = {transform.eulerAngles.y}");
+        waitHandle.Set();                // Signal that the rotation is complete
     }
 }
