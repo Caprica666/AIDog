@@ -282,7 +282,7 @@ public class WebListener : MonoBehaviour
                 }
                 var response_data = JsonConvert.SerializeObject(result);
                 buffer = Encoding.UTF8.GetBytes(response_data);
-                Debug.Log($"Turn robot camera complete");
+                Debug.Log($"Turn robot camera complete current_angle = {curangle}");
             }
             else
             {

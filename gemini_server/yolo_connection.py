@@ -25,7 +25,7 @@ class ObjectDetector():
             boxes = result.boxes  # Boxes object for bounding box outputs
             # Sort indices of boxes.conf in descending order
             if boxes.conf is not None and len(boxes.conf) > 0:
-                conf_array = np.array(boxes.conf)
+                conf_array = np.asarray(boxes.conf)
                 sorted_indices = conf_array.argsort()[::-1]
             else:
                 sorted_indices = range(len(boxes))
@@ -36,7 +36,6 @@ class ObjectDetector():
                 coords = [int(c) for c in coords]  # Convert all coords to int
                 bbox = [ coords[0] - coords[2] / 2, coords[1] - coords[3] / 3, coords[2], coords[3]]
                 box_results.append({ "label" : name, "box": bbox })
-                self.logger.debug("ObjectDetector found " + name)
         return box_results
 
 

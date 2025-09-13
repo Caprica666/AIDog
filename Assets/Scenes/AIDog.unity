@@ -922,7 +922,7 @@ MeshRenderer:
   m_DynamicOccludee: 1
   m_StaticShadowCaster: 0
   m_MotionVectors: 1
-  m_LightProbeUsage: 1
+  m_LightProbeUsage: 0
   m_ReflectionProbeUsage: 1
   m_RayTracingMode: 2
   m_RayTraceProcedural: 0
@@ -971,8 +971,8 @@ Transform:
   m_GameObject: {fileID: 1539075514}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 0.005, y: 0.005, z: 0.005}
+  m_LocalPosition: {x: -0.02, y: 0, z: 0.0375}
+  m_LocalScale: {x: 0.01, y: 0.01, z: 0.01}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 1120098509}
@@ -1151,7 +1151,7 @@ MeshRenderer:
   m_DynamicOccludee: 1
   m_StaticShadowCaster: 0
   m_MotionVectors: 1
-  m_LightProbeUsage: 1
+  m_LightProbeUsage: 0
   m_ReflectionProbeUsage: 1
   m_RayTracingMode: 2
   m_RayTraceProcedural: 0
@@ -1200,8 +1200,8 @@ Transform:
   m_GameObject: {fileID: 1783601491}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0.017700002, y: -0.0001999999, z: 0.0042000003}
-  m_LocalScale: {x: 0.005, y: 0.005, z: 0.005}
+  m_LocalPosition: {x: 0.02, y: 0, z: 0.04375}
+  m_LocalScale: {x: 0.01, y: 0.01, z: 0.01}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 1120098509}
@@ -1235,13 +1235,13 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 2114605534}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.10805916, y: -0.5770389, z: 0.027615584, w: 0.80906534}
+  m_LocalRotation: {x: -0.080046766, y: -0.7025614, z: -0.080046766, w: 0.7025614}
   m_LocalPosition: {x: -0.008391335, y: 0.0060360283, z: 0.0029513547}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 211850771}
-  m_LocalEulerAnglesHint: {x: 24.712, y: 0, z: 0}
+  m_LocalEulerAnglesHint: {x: -13, y: -90, z: 0}
 --- !u!114 &2114605536
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1339,8 +1339,8 @@ Camera:
     y: 0
     width: 1
     height: 1
-  near clip plane: 0.01
-  far clip plane: 100
+  near clip plane: 0.05
+  far clip plane: 200
   field of view: 90
   orthographic: 0
   orthographic size: 5

@@ -126,6 +126,31 @@ class RobotFunctions():
         result["image"] = self.process_image(image_data)
         return result
 
+    def set_robot_yangle(self, args):
+        """
+        Set the robot Y angle to an absolute orientation in degrees.
+        
+        Args: dictionary with the following:
+            current_angle: The desired angle around the Y (up) axis in degrees.
+            angular_velocity: The speed of the turn in degrees per second. (default is 10)
+            
+        Returns:
+            message: error message if an error occurs
+            success: True if the turn was successful, False otherwise
+        """
+        if "current_angle" not in args:      
+            self.logger.debug("Missing angle argument for set_robot_yangle function.")
+            return { "message": "error: Missing angle argument for set_robot_yangle function.", "success": False }
+        if "angular_velocity" not in args:
+            args["angular_velocity"] = 10
+        if args["angular_velocity"] < 0:
+            self.logger.debug("Angular velocity must be a positive number.")
+            return { "message": "error: Angular velocity must be a positive number.", "success": False }
+        result = self.remote_robot.set_robot_yangle(args)  
+        if "error" in result["message"]:
+            return result
+        return result
+    
     def detect_object(self, args):
         """
         Determine if the robot can currently see a designated and return its bounding box.

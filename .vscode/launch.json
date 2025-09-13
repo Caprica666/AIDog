@@ -30,10 +30,11 @@
             "module": "pytest",
             "args": [
                 "-s",
-                "test_yolo.py", "test_robot_functions.py", "test_robot_controller.py"
- //                "test_robot_controller.py"
- //                "test_robot_functions.py"
- //               "test_yolo.py"
+ //               "test/test_yolo.py", "test/test_robot_functions.py", "test/test_robot_controller.py"
+                 "test/test_robot_controller.py",
+ //                "test/test_robot_functions.py",
+ //                "test/test_yolo.py"
+ //                "test/test_robot_connection.py"
             ],
             "cwd": "${workspaceFolder}/gemini_server",
             "justMyCode": false

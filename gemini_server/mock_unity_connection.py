@@ -15,7 +15,7 @@ class MockUnityConnection(RobotConnection):
     def image_from_robot(self):
         """Fetch an image from Unity and convert it to a PNG encoded byte array."""
         self.frame_count += 1
-        if self.frame_count > 4:
+        if self.frame_count > 3:
             self.frame_count = 1
         self.logger.debug("MockUnityConnection image_from_robot: frame #" + str(self.frame_count))
         filename = "capturedimage" + str(self.frame_count) + ".png"

@@ -1,12 +1,15 @@
 import os
 import pytest
 import logging
+from pathlib import Path
 from robot_controller import RobotController
 from gemini_connection import GeminiClient
 
 MOCK_UNITY = False
 MOCK_YOLO = False
-MOCK_UNITY_DIR = os.path.join(os.path.dirname(__file__), 'static', 'mock_unity')
+TEST_PATH = Path.cwd()
+PARENT_PATH = TEST_PATH.parent                      
+MOCK_UNITY_DIR = os.path.join(PARENT_PATH, 'gemini_server', 'static', 'mock_unity')
 logging.basicConfig(level = logging.DEBUG)
 logger = logging.getLogger("RobotClient")
 logger.setLevel(logging.DEBUG)
@@ -18,7 +21,7 @@ def robot_controller():
         robot = RobotController(logger, aihelper, "mock_unity", mock_unity_dir = MOCK_UNITY_DIR, mock_yolo = MOCK_YOLO)
     else:
         robot = RobotController(logger, aihelper, "unity")
-    robot.robot.remote_robot.set_robot_yangle({ "current_angle" : 60, "angular_velocity": 20 })
+    robot.robot.set_robot_yangle({ "current_angle" : 60, "angular_velocity": 20 })
     robot.robot.yolo.frame_count = 0
     robot.robot.remote_robot.frame_count = 0
     robot.robot.remote_robot.image_from_robot()
@@ -103,10 +106,11 @@ def test_detect_object_found(robot_controller):
     assert result["action"] == "resubmit"
     result = robot_controller.process_function_call("detect_object", {"label": "ball"})
     assert result["label"] == "ball"
-    assert result["box"] == [-0.5, 162.0, 43, 36]
     assert result["message"] == "Object found"
     assert result["success"] is True
     assert result["image"] is not None
+    assert [int(x) for x in result["box"]] == [49, 150, 25, 23]
+
 
 def test_detect_object_not_found(robot_controller):
     result = robot_controller.process_function_call("detect_object", {"label": "cat"})
@@ -132,15 +136,18 @@ def test_process_command_single_turn(robot_controller):
     assert result["message"] == "Object found"
     assert robot_controller.function_info is None
     assert result["label"] == "ball"
-    assert result["box"] == [-0.5, 162.0, 43, 36]
+    assert [int(x) for x in result["box"]] == [49, 150, 25, 23]
     assert result["success"] is True
     
-def test_process_command_three_turns(robot_controller):
+def test_process_command_two_turns(robot_controller):
+    # Frame 0: no objects
     result = robot_controller.process_command("find the box")
     assert "image" in result
     assert result["action"] == "resubmit"
     assert result["image"] is not None
     assert robot_controller.function_info is not None
+    
+    # Frame 1: ball is visible, box is not
     assert robot_controller.function_info["name"] == "turn_robot_camera"
     assert "function_output" in robot_controller.function_info
     result = robot_controller.function_info["function_output"]
@@ -148,8 +155,12 @@ def test_process_command_three_turns(robot_controller):
     assert "robot successfully turned" in result["message"]
     assert result["success"] is True
     assert result["action"] == "resubmit"
+    
     result = robot_controller.process_command("find the box")
+    print("find the box:" + result["message"])
     assert robot_controller.function_info is not None
+    
+    # Frame 2: box and ball are visible
     assert robot_controller.function_info["name"] == "turn_robot_camera"
     assert "function_output" in robot_controller.function_info
     result = robot_controller.function_info["function_output"]
@@ -157,21 +168,13 @@ def test_process_command_three_turns(robot_controller):
     assert "robot successfully turned" in result["message"]
     assert result["success"] is True
     assert result["action"] == "resubmit"
+    
     result = robot_controller.process_command("find the box")
-    assert robot_controller.function_info is not None
-    assert robot_controller.function_info["name"] == "turn_robot_camera"
-    assert "function_output" in robot_controller.function_info
-    result = robot_controller.function_info["function_output"]
-    assert result["current_angle"] == -90
-    assert "robot successfully turned" in result["message"]
-    assert result["success"] is True
-    assert result["action"] == "resubmit"
-    result = robot_controller.process_command("find the box")
+    print("find the box:" + result["message"])
     assert "image" in result
     assert result["image"] is not None
     assert result["message"] == "Object found"
     assert robot_controller.function_info is None
     assert result["label"] == "box"
-    assert result["box"] == [46.5, 155.66666666666666, 55, 55]
-    
+    assert [int(x) for x in result["box"]] == [29, 150, 33, 27]
     
